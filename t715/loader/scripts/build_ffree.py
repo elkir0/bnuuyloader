@@ -15,8 +15,22 @@ size makes malloc carve at 0x23EC0008, and whose next is F2 = F + 0x100, the cod
 walk is B0 (busy, skipped) > F (free, huge) > F2 (busy) > head, and nothing else in the heap
 matters. When 0x23e17b20 (called by `boot` at 0x23E069D8) returns, pc = F2.
 
---verify decodes the whole logo with S-Boot's decoder in the emulator (about 75 s) and shows the
-bytes S-Boot will really leave at 0x24F00000.
+--verify decodes the whole logo with S-Boot's decoder in the emulator (one to three minutes) and
+refuses the image unless the 16 bytes at 0x24F00000 are the heap head the loader is forged for
+(preflight.HEADER) and nothing was written past the last row. For the probe (--no-trap), it refuses
+it unless the heap head is as before the decode.
+
+--geometry wide (2026-11-25): the logo of a whole screen. It is 2048 x 2049, and the trapped block
+is the first of its last row (block 256, 0): row 2048 starts at 0x24F00000, since 2048 rows of
+6144 bytes are the 12 MiB of the decode buffer. S-Boot draws a logo from the top left corner, a
+pixel at a time, and cuts nothing (decode_and_draw): the panel shows the first 1536 columns of the
+first 2048 rows; the last row falls 8 KiB past the framebuffer, where the narrow logo writes too.
+With --art PICTURE the picture fills those rows (scripts/logo_art.py: the tables, the floors, the
+order of the channels); without it the logo is black. --no-trap builds the probe for the screen
+instead: the same picture in a logo of 2048 rows, which ends at 0x24F00000 and writes nothing over
+the heap, and no code after it: S-Boot boots its own kernel over the picture. A logo of 2049 rows
+whose trapped block would be left black is never built: it would write zeros over the heap head,
+and malloc would follow a null pointer.
 """
 from __future__ import annotations
 
@@ -31,6 +45,7 @@ import time
 from pathlib import Path
 
 from capstone import CS_ARCH_ARM, CS_ARCH_ARM64, CS_MODE_ARM, Cs
+import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -41,6 +56,8 @@ import build_split as bs  # noqa: E402
 import sboot_calib as c  # noqa: E402
 import jpegforge as jf  # noqa: E402
 import split_source  # noqa: E402
+import logo_art  # noqa: E402
+
 
 WIDTH, HEIGHT = 310, 13501
 STRIDE = (WIDTH * 3 + 3) & ~3
@@ -142,6 +159,59 @@ def build_sreset(work: Path, node: int, marker: str, counter: bool = False, vect
     return code
 
 
+def picture_jpeg(args, trap: list | None, height: int = logo_art.HEIGHT) -> bytes:
+    """The JPEG of the wide logo: the picture of --art (black without it), and the trapped block
+    unless this is the probe."""
+    picture = np.zeros((logo_art.VISIBLE_HEIGHT, logo_art.VISIBLE_WIDTH, 3)) if args.art is None else \
+        logo_art.compose(args.art, args.black, tuple(int(v) for v in args.order.split(",")), args.scale)
+    jpeg = logo_art.build_jpeg(logo_art.coefficients(picture, args.luma_floor, args.chroma_floor), trap, args.tables, height)
+    if len(jpeg) >= args.node - bh.FILE_BUFFER:
+        raise SystemExit(f"the JPEG ({len(jpeg)} bytes) reaches the node's offset")
+    return jpeg
+
+
+def refused(args) -> None:
+    """The image --verify refused is taken away, with its logo file: nothing that failed stays where a loader is taken from."""
+    for path in (args.out_param, args.out_jpeg):
+        if path:
+            path.unlink(missing_ok=True)
+
+
+def probe(args, width: int, stride: int) -> int:
+    """The probe for the screen (--no-trap): the stock PARAM with its logo replaced by the picture's
+    JPEG in whole sectors, and nothing after it. The logo has 2048 rows, so the last one ends at
+    0x24F00000, where the loader's logo goes on and forges the heap head: nothing of the heap is
+    written, and S-Boot boots its own kernel over the picture."""
+    jpeg = picture_jpeg(args, None, logo_art.PROBE_HEIGHT)
+    logo = jpeg + bytes(-len(jpeg) % 512)
+    stock = args.stock_param.read_bytes()
+    param = bytearray(bc.replace_logo(stock, logo))
+    end = max(i for i in range(0, bh.DATA_AT, 512) if any(param[i:i + 512])) + 512
+    assert end + 1024 <= bh.DATA_AT, f"the archive reaches {end:#x}, into S-Boot's data"
+    param[bh.DATA_AT:] = stock[bh.DATA_AT:]
+    if len(param) != len(stock) or param[bh.DATA_AT:] != stock[bh.DATA_AT:]:
+        raise SystemExit("the image is not the stock one past DATA_AT")
+    args.out_param.write_bytes(bytes(param))
+    if args.out_jpeg:
+        args.out_jpeg.write_bytes(logo)
+    print(f"the probe: logo {width}x{logo_art.PROBE_HEIGHT}, stride {stride}: {len(jpeg)} bytes of JPEG in a file of "
+          f"{len(logo)} bytes ({len(logo) // 512} sectors), no trapped block and no code after it; the archive ends at {end:#x}")
+    if args.verify:
+        import sboot_jpeg_emu as e
+        sboot = e.SBoot(e.IMAGE.read_bytes())
+        before = bytes(sboot.uc.mem_read(B0, 64))
+        result = sboot.decode(logo)
+        rows, decoded_stride = result["height"], result["stride"]
+        after = result["memory"][decoded_stride * rows: decoded_stride * rows + 64]
+        print(f"S-Boot's decoder ({result['instructions']:,} instructions): image {result['width']}x{rows}, stride {decoded_stride}, "
+              f"the last row ends at {e.DECODE_BUFFER + decoded_stride * rows:#010x}; the heap head after the logo: {after[:16].hex(' ')}")
+        if rows != logo_art.PROBE_HEIGHT or after != before:
+            refused(args)                                             # no refused image left where a loader is taken from
+            raise SystemExit(f"REFUSED: not the logo of {logo_art.PROBE_HEIGHT} rows that leaves the heap as it was")
+        print("    the 64 bytes at the heap head: as before the logo")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("stock_param", type=Path)
@@ -172,8 +242,29 @@ def main() -> int:
                         help="store the bundle in this image, at this byte offset of PARAM: in the room between the end of the "
                              "archive and S-Boot's data (0x700000), which S-Boot never reads (the sector follows)")
     parser.add_argument("--out-jpeg", type=Path)
+    parser.add_argument("--geometry", choices=["narrow", "wide"], default="narrow",
+                        help="wide: a logo of 2048 x 2049, the trapped block first of its last row (see above)")
+    parser.add_argument("--art", type=Path, help="wide: the picture the logo shows (scripts/logo_art.py)")
+    parser.add_argument("--no-trap", action="store_true",
+                        help="wide: the probe for the screen, the picture in a logo of 2048 rows and no code: S-Boot boots its own kernel")
+    parser.add_argument("--tables", default="all", choices=["libjpeg", "dc", "eob", "all"], help="wide: the code lengths (logo_art.PLANS)")
+    parser.add_argument("--luma-floor", type=int, default=3, help="wide, with --art: coefficients of luma below this are left out")
+    parser.add_argument("--chroma-floor", type=int, default=2, help="wide, with --art: the same for chroma")
+    parser.add_argument("--black", type=int, default=14, help="wide, with --art: pixels this dark are black")
+    parser.add_argument("--scale", type=float, default=1.0, help="wide, with --art: the picture's height as a share of the panel's")
+    parser.add_argument("--order", default="0,1,2",
+                        help="wide, with --art: the picture's channels the file's R, G, B carry (logo_art.py)")
     args = parser.parse_args()
-    assert HEADER_ROW * STRIDE + HEADER_BYTE == B0 - bc.DECODE_BUFFER
+    width, height, header_row, header_byte = WIDTH, HEIGHT, HEADER_ROW, HEADER_BYTE
+    if args.geometry == "narrow" and (args.art or args.no_trap):
+        raise SystemExit("--art and --no-trap go with --geometry wide")
+    if args.geometry == "wide":
+        width, height, header_row, header_byte = logo_art.WIDTH, logo_art.HEIGHT, logo_art.HEIGHT - 1, 0
+    block_row, block_col = header_row // 8, header_byte // 24
+    stride = (width * 3 + 3) & ~3
+    assert header_row * stride + header_byte == B0 - bc.DECODE_BUFFER
+    if args.no_trap:                                      # the probe: no trapped block, no row past the panel, no code
+        return probe(args, width, stride)
     coefs = json.loads((Path(__file__).resolve().parent.parent / "out" / "calibrated_block.json").read_text())
 
     # the code: node F2 at node + 0x100, the code at F2 + 16
@@ -256,13 +347,17 @@ def main() -> int:
     at = text.index(b"KBOOT: try") if args.payload == "kboot" else text.index(b"HIJACK")
     print("    string in the code:", repr(text[at: at + 62]))
 
-    blocks = {}
-    black = c.block_coefficients([c.BLACK] * 8)
-    for by in range((HEIGHT + 7) // 8):
-        for bx in range((WIDTH + 7) // 8):
-            blocks[(by, bx)] = black
-    blocks[(BLOCK_ROW, BLOCK_COL)] = coefs
-    jpeg = jf.encode_jpeg(WIDTH, HEIGHT, blocks)
+    if args.geometry == "wide":
+        jpeg = picture_jpeg(args, coefs)
+    else:
+        blocks = {}
+        black = c.block_coefficients([c.BLACK] * 8)
+        for by in range((height + 7) // 8):
+            for bx in range((width + 7) // 8):
+                blocks[(by, bx)] = black
+        if coefs is not None:
+            blocks[(block_row, block_col)] = coefs
+        jpeg = jf.encode_jpeg(width, height, blocks)
     if len(jpeg) >= args.node - bh.FILE_BUFFER:
         raise SystemExit(f"the JPEG ({len(jpeg)} bytes) reaches the node's offset")
 
@@ -334,22 +429,33 @@ def main() -> int:
         raise SystemExit("the bundle read back from the image is not the bundle")
     if args.out_jpeg:
         args.out_jpeg.write_bytes(bytes(logo))
-    print(f"logo {WIDTH}x{HEIGHT}, stride {STRIDE}: {len(jpeg)} bytes of JPEG, file {len(logo)} bytes "
-          f"({len(logo) / 512:.0f} sectors); B0 at row {HEADER_ROW} + {HEADER_BYTE} (block {BLOCK_ROW},{BLOCK_COL}); "
+    print(f"logo {width}x{height}, stride {stride}: {len(jpeg)} bytes of JPEG, file {len(logo)} bytes "
+          f"({len(logo) / 512:.0f} sectors); B0 at row {header_row} + {header_byte} (block {block_row},{block_col}); "
           f"F {args.node:#010x} = {{size {block_size:#010x}, free, 0, {code_node:#010x}}}")
 
     if args.verify:
+        import preflight as pf
         import sboot_jpeg_emu as e
         sboot = e.SBoot(e.IMAGE.read_bytes())
+        row_end = e.DECODE_BUFFER + stride * height
+        after_row = bytes(sboot.uc.mem_read(row_end, 64))
         result = sboot.decode(bytes(logo))
         memory = result["memory"]
         header = memory[B0 - bc.DECODE_BUFFER: B0 - bc.DECODE_BUFFER + 24]
-        print(f"S-Boot's decoder ({result['instructions']} instructions): image {result['width']}x{result['height']}, "
+        print(f"S-Boot's decoder ({result['instructions']:,} instructions): image {result['width']}x{result['height']}, "
               f"stride {result['stride']}, bytes at {B0:#010x}: {header[:16].hex(' ')} | spill {header[16:].hex(' ')}")
         size, flag, prev, nxt = struct.unpack("<IB3xII", header[:16])
         print(f"    B0 = {{size {size:#010x}, free byte {flag:#04x}, prev {prev:#010x}, next {nxt:#010x}}}")
         above = [i for i in range(B0 - bc.DECODE_BUFFER + 16, len(memory)) if memory[i]]
         print(f"    non-zero bytes above B0's header: {len(above)}, last at +{above[-1] - (B0 - bc.DECODE_BUFFER) if above else 0}")
+        if header[:16] != pf.HEADER[:16] or memory[stride * height:] != after_row:
+            refused(args)                                             # no refused image left where a loader is taken from
+        if header[:16] != pf.HEADER[:16]:
+            raise SystemExit(f"REFUSED: S-Boot's decoder leaves {header[:16].hex(' ')} at {B0:#010x}, not the heap head "
+                             f"the loader is forged for ({pf.HEADER[:16].hex(' ')})")
+        if memory[stride * height:] != after_row:
+            raise SystemExit(f"REFUSED: S-Boot's decoder wrote at {row_end:#010x}, past the last row")
+        print("    the heap head is the one the loader is forged for; the 64 bytes after the last row are as before the decode")
     writes = bs.emulate(bytes(header[:16]) if args.verify else bytes(16), bytes(logo), NEED) if args.verify else []
     for what, address, value in writes:
         note = "  <- the saved return address of 0x23e17b20" if address == bs.SAVED_LR else ""

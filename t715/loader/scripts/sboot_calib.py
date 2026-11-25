@@ -23,6 +23,13 @@ The target: the heap head's 16 bytes at 0x24F00000 with an image of width 310, s
   pixel 308 (b12 b13 b14) next byte 0 (free), next byte 1 (free), next byte 2 = F's byte 2 (0x20..0x2f)
   pixel 309 (b15 b16 b17) next byte 3 = 0x24, then three spill bytes (free)
   pixels 310, 311        beyond the image's width: never decoded
+
+The same block serves the logo of a whole screen (build_ffree.py --geometry wide: width 2048,
+stride 6144, 2049 rows; the head starts at row 2048, byte 0, the first pixel of the last row, so
+the block is the first of its row). The block is calibrated on an image of its own, where the
+decoder's predictor starts at 0, and in both logos the block coded before it is black, so the same
+coefficients give the same bytes: checked on the whole logo in the emulator (scripts/preview_logo.py
+--decoder sboot gives the decoded rows, and the last one holds the head).
 """
 from __future__ import annotations
 
