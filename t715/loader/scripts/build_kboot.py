@@ -19,7 +19,20 @@ The production chain (the kernel lives in a slot of CACHE, the loader in PARAM):
      slot that is not in use.
   The loader holds nothing of a kernel (since kboot4, 2026-11-24): the same PARAM image starts
   whatever valid kernel a slot holds, so updating a slot needs no new PARAM. Then rehearse
-  (scripts/kboot_cases.py) before anything reaches the tablet.
+  (scripts/kboot_cases.py) before anything reaches the tablet. With --verify, the logo is also
+  decoded by S-Boot's own decoder in the emulator before the image is accepted: it must leave the
+  heap head the loader is forged for and write nothing past the last row.
+
+A picture as the logo of the whole screen (--geometry wide, scripts/logo_art.py):
+
+    venv/bin/python -I scripts/build_kboot.py --prod --name kbootN --geometry wide --art PICTURE --order 2,0,1
+    venv/bin/python -I scripts/build_kboot.py --prod --name kbootN-probe --geometry wide --art PICTURE --no-trap
+
+  The logo is 2048 x 2049 and shows the picture where the panel reads it. The loader's code is
+  the same; only the logo changes. --no-trap builds the probe for the screen instead: the picture
+  in a logo of 2048 rows, which reaches nothing of the heap, and no code: S-Boot boots its own
+  kernel over the picture. Its file is out/NAME.param, to be written like a loader's and replaced
+  by one afterwards.
 
 The test chain (the kernel inside PARAM, for one self-resetting boot):
 
@@ -97,6 +110,21 @@ def main() -> int:
     parser.add_argument("--corrupt", action="store_true", help="prod: one byte of the image changed after it was hashed (a test of the way back)")
     parser.add_argument("--id", type=lambda t: int(t, 0), help="test: the image's marker, 32 bits")
     parser.add_argument("--in-param", type=lambda t: int(t, 0), default=0x120000, help="test: where in PARAM the bundle is stored")
+    parser.add_argument("--verify", action="store_true",
+                        help="prod: the logo decoded by S-Boot's own decoder in the emulator must leave the heap head the loader is "
+                             "forged for and write nothing past the last row (one to three minutes; for the probe: the heap untouched)")
+    picture = parser.add_argument_group("the logo of a whole screen (prod; build_ffree.py --geometry wide)")
+    picture.add_argument("--geometry", choices=["narrow", "wide"], default="narrow",
+                         help="wide: a logo of 2048 x 2049 whose first 1536 columns and 2048 rows the panel shows")
+    picture.add_argument("--art", type=Path, help="wide: the picture the logo shows (scripts/logo_art.py)")
+    picture.add_argument("--no-trap", action="store_true",
+                         help="wide: the probe for the screen, not a loader: the picture in a logo of 2048 rows, no code; S-Boot boots its own kernel")
+    picture.add_argument("--tables", default="all", choices=["libjpeg", "dc", "eob", "all"])
+    picture.add_argument("--luma-floor", type=int, default=3)
+    picture.add_argument("--chroma-floor", type=int, default=2)
+    picture.add_argument("--black", type=int, default=14)
+    picture.add_argument("--scale", type=float, default=1.0)
+    picture.add_argument("--order", default="0,1,2")
     args = parser.parse_args()
     with_kernel = args.image is not None or args.dtb is not None
     if with_kernel and (args.image is None or args.dtb is None):
@@ -109,10 +137,33 @@ def main() -> int:
         raise SystemExit("--corrupt is for the slot image of --prod")
     if args.test and args.id is None:
         raise SystemExit("--test needs --id")
+    if args.verify and not args.prod:
+        raise SystemExit("--verify is for --prod")
+    wide = []
+    if args.geometry == "wide" or args.art or args.no_trap:
+        if not args.prod or args.geometry != "wide":
+            raise SystemExit("--geometry wide, --art and --no-trap are for --prod, together")
+        wide = ["--geometry", "wide"]
+        if args.art:
+            wide += ["--art", str(args.art), "--tables", args.tables, "--luma-floor", str(args.luma_floor),
+                     "--chroma-floor", str(args.chroma_floor), "--black", str(args.black), "--scale", str(args.scale),
+                     "--order", args.order]
+        if args.no_trap:
+            wide += ["--no-trap"]
 
-    import build_ffree as bf
     out = HERE.parent / "out"
     stock = str(HERE.parent / "dumps" / "PARAM-mmcblk0p8.bin")
+    param, logo = out / f"{args.name}.param", out / f"{args.name}-logo.jpg"
+    if args.no_trap:                                      # the probe: the logo alone, so neither stage 2 nor a slot image
+        with (out / f"{args.name}-build.log").open("w") as handle:
+            run(handle, ["build_ffree.py", stock, str(param), "--out-jpeg", str(logo)] + wide + (["--verify"] if args.verify else []))
+        for line in (out / f"{args.name}-build.log").read_text().splitlines():
+            if line.startswith(("the probe", "S-Boot's decoder", "    B0 = ", "    the heap head", "    the 64 bytes")):
+                print(line[:220])
+        print(f"{param.name}: {param.stat().st_size} bytes, sha256 {hashlib.sha256(param.read_bytes()).hexdigest()}")
+        return 0
+
+    import build_ffree as bf
     if with_kernel:
         image, tree = args.image.read_bytes(), args.dtb.read_bytes()
         if struct.unpack_from("<I", image, 0x38)[0] != 0x644D5241 or struct.unpack_from("<Q", image, 8)[0] != 0:
@@ -125,17 +176,17 @@ def main() -> int:
         tree_hash = fnv1a(tree + bytes(tree_bytes - len(tree)))
 
     if args.prod:
-        stage, param, logo = out / f"stage2-{args.name}.bin", out / f"{args.name}.param", out / f"{args.name}-logo.jpg"
+        stage = out / f"stage2-{args.name}.bin"
         slot = out / f"slot-{args.name}-gen{args.gen}.img" if with_kernel else None
         commands = [
             ["build_stage2.py", str(stage), "--marker", MARKER, "--prod", "--handoff", "--watchdog-arm", "--slot"],
             ["build_ffree.py", stock, str(param), "--payload", "kboot", "--marker", MARKER, "--vectors", "--mmu",
-             "--stage2", str(stage), "--out-jpeg", str(logo)],
+             "--stage2", str(stage), "--out-jpeg", str(logo)] + wide + (["--verify"] if args.verify else []),
         ] + ([["build_slot.py", "--image", str(args.image), "--dtb", str(args.dtb), "--gen", str(args.gen), "--out", str(slot)]
               + (["--corrupt"] if args.corrupt else [])] if with_kernel else [])
     else:
         marker = f"HIJACK3: {args.id & 0xFFFFFFFF:08x}"
-        stage, param, logo = out / f"stage2-{args.name}.bin", out / f"{args.name}.param", out / f"{args.name}-logo.jpg"
+        stage = out / f"stage2-{args.name}.bin"
         bundle = out / f"bundle-{args.name}.bin"
         commands = [
             ["build_stage2.py", str(stage), "--marker", marker, "--emmc", "--handoff", "--watchdog-arm",
@@ -166,7 +217,8 @@ def main() -> int:
         print(f"device tree {args.dtb.name}: {len(tree)} bytes ({hashlib.sha256(tree).hexdigest()[:16]}), read as {tree_bytes:#x} bytes "
               f"at {DTB_AT:#010x}, fnv1a {tree_hash:#018x}")
     for line in log.read_text().splitlines():
-        if line.startswith(("the production loader", "bundle ", "the bundle is in PARAM", "marker of this image")) or " the bytes " in line:
+        if line.startswith(("the production loader", "bundle ", "the bundle is in PARAM", "marker of this image", "S-Boot's decoder",
+                            "    B0 = ", "    the heap head", "    the 64 bytes")) or " the bytes " in line:
             print(line[:220])
     if args.prod:
         logo_bytes = logo.read_bytes()                 # the node at file offset 0x20000, the ARM32 code from 0x110 after it

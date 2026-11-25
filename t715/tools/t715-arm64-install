@@ -13,7 +13,9 @@
 #   t715-arm64-install modules NAME TARBALL            the kernel's modules.tar.xz into NAME/usr/lib/modules
 #   t715-arm64-install kernel IMAGE DTB                the slot not newest gets IMAGE + DTB, generation + 1
 #   t715-arm64-install loader PARAM_IMAGE              the loader into PARAM, for good (verified; no reboot)
-#   t715-arm64-install unloader                        the original PARAM back (the 32-bit system only)
+#   t715-arm64-install unloader [--no-32bit-root-ok]   the original PARAM back; refused while BOOT's
+#                                                      32-bit kernel has no root behind it (since
+#                                                      2026-11-25) unless the flag says it is wanted
 #
 # What it never does: write anything but USERDATA/NAME, a slot of CACHE (scripts/slot.py) and PARAM;
 # reboot; touch the 32-bit root USERDATA/omarchy. NAME is a plain name (letters, digits, - _ .).
@@ -28,6 +30,11 @@ T="${T715_TSSH:-}"
 UD=/run/t715/userdata
 ORIG="$LDR/dumps/PARAM-mmcblk0p8.bin"
 ORIG_SHA="${ORIG_SHA:?set ORIG_SHA to the SHA-256 of your own stock PARAM image}"
+# A loader is the first LOADER_BYTES of PARAM (the archive S-Boot reads its logo from). S-Boot
+# writes data of its own after them whenever it boots a kernel itself (a fallback boot: 2026-11-25),
+# so PARAM is named by that part's sha256, never by the whole partition's; a write is still
+# verified by the whole partition's.
+LOADER_BYTES=7340032
 IMAGE_TOOL="${T715_KBUILD_IMAGE:-t715-kbuild}"
 
 die() { echo "t715-arm64-install: $*" >&2; exit 1; }
@@ -43,6 +50,9 @@ need_tablet() {
 }
 
 param_sha() { tab 'sha256sum /dev/mmcblk0p8 | cut -c1-64' 2>/dev/null | tr -d '\r'; }
+param_id() { tab "head -c $LOADER_BYTES /dev/mmcblk0p8 | sha256sum | cut -c1-64" 2>/dev/null | tr -d '\r'; }
+file_id() { head -c "$LOADER_BYTES" "$1" | shasum -a 256 | cut -c1-64; }
+orig_id() { file_id "$ORIG"; }
 
 write_param() {   # $1 = local image; echoes the partition's sha256 after the write
     cat "$1" | "$T" 'blockdev --setrw /dev/mmcblk0p8 && cat > /dev/mmcblk0p8 && sync && blockdev --setro /dev/mmcblk0p8 && sha256sum /dev/mmcblk0p8 | cut -c1-64' 2>/dev/null | tr -d '\r'
@@ -56,10 +66,17 @@ cmd_status() {
              a=\$(dd if=\$d/usr/lib/systemd/systemd bs=1 skip=18 count=1 2>/dev/null | od -An -tx1 | tr -d ' ');
              printf '  root %-18s %s\n' \"\$n\" \"\$( [ \"\$a\" = b7 ] && echo aarch64 || echo 'not aarch64')\"; done;
          printf 'battery: %s%%\n' \"\$(cat /sys/class/power_supply/*/capacity 2>/dev/null | head -1)\""
-    local sha; sha=$(param_sha)
-    case "$sha" in
-        "$ORIG_SHA") echo "PARAM: the original (no loader)" ;;
-        *) echo "PARAM: ${sha:0:16}… ($(for f in "$LDR"/out/kboot*.param; do [ "$(shasum -a 256 "$f" | cut -c1-64)" = "$sha" ] && basename "$f"; done | tr '\n' ' '))" ;;
+    local sha id f name; sha=$(param_sha); id=$(param_id)
+    case "$id" in
+        "$(orig_id)") echo "PARAM: the original (no loader)" ;;
+        *) name=
+           for f in "$LDR"/out/kboot*.param; do
+               if [ "$(file_id "$f")" = "$id" ]; then
+                   name=$(basename "$f")
+                   [ "$(shasum -a 256 "$f" | cut -c1-64)" = "$sha" ] || name="$name, S-Boot's data changed since (a fallback boot)"
+               fi
+           done
+           echo "PARAM: ${id:0:16}… ($name)" ;;
     esac
     (cd "$LDR" && venv/bin/python -I scripts/slot.py show) | sed 's/^/  /'
 }
@@ -129,12 +146,13 @@ cmd_loader() {
     img=$(abspath "$1")
     [ -f "$img" ] || die "no $img"
     need_tablet
-    local local_sha before got
-    local_sha=$(shasum -a 256 "$img" | cut -c1-64)
-    before=$(param_sha)
+    local local_sha local_id before got
+    local_sha=$(shasum -a 256 "$img" | cut -c1-64)      # the whole image: what the write must read back
+    local_id=$(file_id "$img")
+    before=$(param_id)
     case "$before" in
-        "$ORIG_SHA"|"$local_sha") ;;
-        *) for f in "$LDR"/out/kboot*.param; do [ "$(shasum -a 256 "$f" | cut -c1-64)" = "$before" ] && known=1; done
+        "$(orig_id)"|"$local_id") ;;
+        *) for f in "$LDR"/out/kboot*.param; do [ "$(file_id "$f")" = "$before" ] && known=1; done
            [ "${known:-0}" = 1 ] || die "PARAM holds neither the original nor a known loader: not writing" ;;
     esac
     got=$(write_param "$img")
@@ -145,9 +163,12 @@ cmd_loader() {
 cmd_unloader() {
     [ -f "$ORIG" ] || die "no original PARAM at $ORIG"
     need_tablet
+    if ! tab "test -d $UD/omarchy/usr/bin" && [ "${1:-}" != --no-32bit-root-ok ]; then
+        die "USERDATA/omarchy is gone: the original PARAM would boot BOOT's 32-bit kernel with no root. Write the Golden rescue to BOOT first, or pass --no-32bit-root-ok"
+    fi
     local got; got=$(write_param "$ORIG")
     [ "$got" = "$ORIG_SHA" ] || die "the original PARAM is NOT back (tablet $got)"
-    say "the original PARAM is back: the next boot is the 32-bit system's"
+    say "the original PARAM is back: the next boot is BOOT's"
 }
 
 case "${1:-}" in
@@ -156,6 +177,6 @@ case "${1:-}" in
     modules) [ $# -eq 3 ] || die "modules NAME TARBALL"; cmd_modules "$2" "$3" ;;
     kernel) [ $# -eq 3 ] || die "kernel IMAGE DTB"; cmd_kernel "$2" "$3" ;;
     loader) [ $# -eq 2 ] || die "loader PARAM_IMAGE"; cmd_loader "$2" ;;
-    unloader) cmd_unloader ;;
+    unloader) cmd_unloader "${2:-}" ;;
     *) sed -n '/^# t715-arm64-install:/,/^# tar (numeric/p' "$0"; exit 2 ;;
 esac

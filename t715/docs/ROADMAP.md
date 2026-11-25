@@ -44,6 +44,9 @@ Legend: **done** (proven on the tablet), **built** (works on the Mac, not run on
   PARAM: **done** (the owner, 2026-11-25: arm64, user space in 12 s, marked up). A soak of several
   hours: **done** (2026-11-25, three hours: twelve 3-min phases of eight busy cores, atlas peak
   94 °C, cooling to 0.9/1.0 GHz, no reboot, keeper and Wi-Fi in every sample).
+- What the panel shows before the kernel: **done** (2026-11-25). S-Boot's own boot logo, the forged
+  one, carries a picture on the whole panel (the owner's picture): drawn before any kernel runs, it
+  stays until Omarchy's splash (../docs/SPLASH.md). `kboot7`: `kboot6`'s code under another logo.
 - The boot screen: **done** (2026-11-25). The panel stayed black until the session (16.9 s): with
   arm64's OF_IOMMU, DECON and the other System MMU masters waited for a driver that is not built until
   the deferred-probe timeout. The System MMUs are disabled in the board tree (../kernel/patches/0008):
@@ -81,8 +84,12 @@ Legend: **done** (proven on the tablet), **built** (works on the Mac, not run on
 - Ledger: a failed attempt that ends in a watchdog reset passes through RECOVERY; the fallback must
   hold across that detour (two previous boots, not one). **done** (`kboot6`; seen on the tablet on
   2026-11-25: a bring-up boot without USB was reset and the 32-bit system came back by itself).
-- An on-tablet way to boot the 32-bit system once (today only `t715-arm64-install unloader`, from the
-  Mac, for good). **open**.
+- A way back without the 32-bit system: **done** (2026-11-25). A rescue in BOOT and RECOVERY (the
+  32-bit port's initramfs with the knob `t715.paramrescue`) writes the loader known to work back
+  when PARAM holds none; seen once putting a lost loader back by itself (../docs/RESCUE.md). The
+  32-bit root left the tablet that day.
+- An on-tablet way to boot BOOT's system once (today only `t715-arm64-install unloader`, from the
+  computer, for good). **open**.
 - A fresh root's first boot has no Wi-Fi (the NVRAM is copied from SYSTEM after brcmfmac probed, and
   brcmfmac cannot be reloaded): copy it in the initramfs, or seed it into the image at install. **open**.
 - pstore: archive the records at boot (systemd-pstore is off; ramoops survives warm resets). **open**.
@@ -106,8 +113,9 @@ Legend: **done** (proven on the tablet), **built** (works on the Mac, not run on
 ## Milestone 5: a release
 
 - An installer that builds the forged PARAM from each tablet's own PARAM (no PARAM image can be
-  distributed: it holds the device's data and Samsung's), writes the slots and the root, and keeps
-  the 32-bit system as the way back.
+  distributed: it holds the device's data and Samsung's), writes the slots and the root. Its own
+  image goes to BOOT and RECOVERY and is the way back (the rescue, ../docs/RESCUE.md): no 32-bit
+  system is needed. What the short route has and lacks, piece by piece: ../docs/GO-ARM64.md.
 - A fuse check before the cpufreq tables are used (they are this chip's: ASV group 1).
 
 ## State on 2026-11-25
@@ -115,8 +123,9 @@ Legend: **done** (proven on the tablet), **built** (works on the Mac, not run on
 **Proven on the tablet.** Milestones 0 to 2 are done: the loader in PARAM starts the full arm64
 kernel, and since 2026-11-25 the tablet boots Omarchy 4.5.0-3 on arm64 by itself, at every boot,
 from the persistent root `USERDATA/omarchy-arm64`. In Milestone 3, the lines marked **done**: the
-"up" mark and the watchdog keeper in the field, the boot screen, the `t715-keys` fix, the modem's CP
-up and the modem in the shell, the ledger across a watchdog reset. Display, touch, GPU, Wi-Fi,
+"up" mark and the watchdog keeper in the field, the boot screen, the picture in the boot logo, the
+way back without the 32-bit system, the `t715-keys` fix, the modem's CP up and the modem in the
+shell, the ledger across a watchdog reset. Display, touch, GPU, Wi-Fi,
 Bluetooth, sound, sensors, battery and charger, and the microSD card are there as far as the health
 check sees.
 
@@ -129,7 +138,7 @@ Bluetooth pairing, the camera.
 at the next kernel build); the modem with a SIM (it needs the owner's SIM); an installer for the
 device's own modem files, and one that carries the time zone and language over; charging on a wall
 charger (it needs the owner's charger); the first Panfrost → exynos-drm imports; an on-tablet way to
-boot the 32-bit system once; a fresh root's first boot without Wi-Fi; pstore archiving; the user's
+boot BOOT's system once; a fresh root's first boot without Wi-Fi; pstore archiving; the user's
 password; the camera userspace; `schedutil` under real use, idle power and the battery heat guard.
 Milestone 4: suspend to RAM, A57 above 1.2 GHz, Android apps, A57 hot-unplug. Milestone 5: the
 installer, and a fuse check before the cpufreq tables are used.

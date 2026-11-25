@@ -168,8 +168,10 @@ def _extend(extra: int, size: int) -> int:
     return extra if extra >= (1 << (size - 1)) else extra + 1 - (1 << size)
 
 
-def encode_block(bits: Bits, block: list[int], prev_dc: list[int], component: int) -> None:
-    dc, ac = HUFFMAN[(0, 0 if component == 0 else 1)], HUFFMAN[(1, 0 if component == 0 else 1)]
+def encode_block(bits: Bits, block: list[int], prev_dc: list[int], component: int, codes=None) -> None:
+    """codes: the Huffman tables to use, as HUFFMAN; None keeps the default tables of libjpeg."""
+    codes = HUFFMAN if codes is None else codes
+    dc, ac = codes[(0, 0 if component == 0 else 1)], codes[(1, 0 if component == 0 else 1)]
     diff = block[0] - prev_dc[component]
     prev_dc[component] = block[0]
     size, extra = magnitude(diff)
@@ -211,9 +213,14 @@ def huffman_segment(tables: list[tuple[int, int, list[int]]]) -> bytes:
     return _segment(0xC4, bytes(payload))
 
 
-def encode_jpeg(width: int, height: int, blocks, components: int = 3) -> bytes:
-    """``blocks[(by, bx)][component]``: 64 coefficients in natural order, or None for black."""
+def encode_jpeg(width: int, height: int, blocks, components: int = 3, tables=None) -> bytes:
+    """``blocks[(by, bx)][component]``: 64 coefficients in natural order, or None for black.
+
+    tables: ``(codes, segments)``, Huffman tables built for this file (scripts/logo_art.py) instead
+    of the default tables of libjpeg: S-Boot's decoder reads the tables of the file (checked in the
+    emulator, 2026-11-25). None writes the same bytes as ever."""
     mcus_x, mcus_y = (width + 7) // 8, (height + 7) // 8
+    codes, segments = (HUFFMAN, DHT_SEGMENTS) if tables is None else tables
     # SOI, JFIF 1.01 without thumbnail, two quantization tables of 1
     out = bytearray(b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00")
     qt = bytes((1,) * 64)
@@ -222,7 +229,7 @@ def encode_jpeg(width: int, height: int, blocks, components: int = 3) -> bytes:
     for ident in range(1, components + 1):
         sof += bytes((ident, 0x11, 0 if ident == 1 else 1))
     out += _segment(0xC0, bytes(sof))
-    out += b"".join(DHT_SEGMENTS)  # the default tables of libjpeg, as Pillow writes them
+    out += b"".join(segments)  # the default tables of libjpeg, as Pillow writes them, or the file's own
     sos = bytearray((components,))
     for ident in range(1, components + 1):
         sos += bytes((ident, 0x00 if ident == 1 else 0x11))
@@ -236,7 +243,7 @@ def encode_jpeg(width: int, height: int, blocks, components: int = 3) -> bytes:
         for bx in range(mcus_x):
             for component in range(components):
                 block = (blocks.get((by, bx)) or [None] * components)[component]
-                encode_block(bits, blacks[min(component, 1)] if block is None else block, prev_dc, component)
+                encode_block(bits, blacks[min(component, 1)] if block is None else block, prev_dc, component, codes)
     bits.flush()
     out += bits.out + b"\xff\xd9"
     return bytes(out)

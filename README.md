@@ -9,6 +9,7 @@ level are upstream's, as they are.
 
 | Go to | |
 |---|---|
+| **Passing a Tab S2 to arm64**: the short route, and the long one for power users | [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md) |
 | The Note 4 loader, upstream | [Upstream: bnuuyloader, by bnuuy](#upstream-bnuuyloader-by-bnuuy) |
 | The Tab S2 port | [This fork: Galaxy Tab S2 8.0 (SM-T715)](#this-fork-galaxy-tab-s2-80-sm-t715) |
 | Who made what, and under which licence | [CREDITS.md](CREDITS.md) |
@@ -78,15 +79,19 @@ Tested on one tablet: bootloader `T715XXU2CRH1`, hardware revision 9. For develo
 |---|---|
 | ARM32 code inside S-Boot, from a forged boot logo | works, and hands control back to S-Boot |
 | AArch64 at EL2, through the same monitor call as upstream | works, on the boot core and on the others |
-| The production loader, in PARAM for good | runs at every boot of the tablet since 2026-11-25 |
+| The production loader, in PARAM for good | `kboot7`: runs at every boot of the tablet since 2026-11-25 |
+| The boot screen: S-Boot's own logo carrying a picture on the whole panel | works since 2026-11-25 ([t715/docs/SPLASH.md](t715/docs/SPLASH.md)) |
 | Linux 6.12.114 arm64, read from a slot of the CACHE partition, hashed, started at EL1 | works, with its eight cores |
 | Omarchy 4.5 on arm64 as the tablet's daily system | user space in about 13 s; a soak of three hours with eight busy cores |
-| The way back after a failed attempt | seen on the tablet: the 32-bit system came back by itself |
+| The way back after a failed attempt | seen on the tablet: the loader hands the next two boots to the rescue in BOOT, then arm64 is tried again |
+| The rescue ([t715/docs/RESCUE.md](t715/docs/RESCUE.md)) | in BOOT and RECOVERY; seen once putting a lost loader back by itself: arm64 again 35 s after the restart |
+| A turnkey install (download, flash, boot) | not yet: [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1 |
 | Another unit, another firmware | not tried |
 
 What was found about this tablet's S-Boot and about arm64 Linux on it is written up in
 [`t715/docs/FINDINGS.md`](t715/docs/FINDINGS.md). How the loader works and how to work with it:
-[`t715/README.md`](t715/README.md).
+[`t715/README.md`](t715/README.md). How to pass a tablet from the 32-bit system to arm64, in
+order, with a way back at every step: [`t715/docs/GO-ARM64.md`](t715/docs/GO-ARM64.md).
 
 ### How the Tab S2 port differs
 
@@ -108,9 +113,10 @@ What was found about this tablet's S-Boot and about arm64 Linux on it is written
 |---|---|---|
 | `build.py`, `compiler_util.py`, `payload_layout.py`, `sboot_util.py`, `requirements.txt`, `src/`, `assets/`, `bnuuy.gif` | the Note 4 loader | upstream |
 | `t715/README.md` | the Tab S2 loader: how it works, how to work with it | this fork |
-| `t715/loader/` | the loader's sources: `scripts/`, `stage2/`, `el1/`, and the ring reader `tools/seclog_dump/` | this fork |
+| `t715/loader/` | the loader's sources: `scripts/`, `stage2/`, `el1/`, `art/` (the owner's boot screen and its preview), and the ring reader `tools/seclog_dump/` | this fork |
+| `t715/rescue/` | the rescue: a patch to omarchy-tab-s2's `boot/`, with its instructions | this fork |
 | `t715/kernel/` | `patches/`: the nine kernel patches; `README.md`; `test-kernel/`: the first test kernel; `smp/`: the eight-core method as a patch series; `config/`: the daily kernel's configuration and build notes | this fork |
-| `t715/docs/` | `FINDINGS.md`, `PRODUCTION-LOADER.md`, `SMP-DESIGN.md`, `SMP-EXPERIMENT.md`, `SMP-MONITOR.md`, `CPUFREQ-THERMAL.md`, `KERNEL-CONFIG.md`, `ROOTFS-AARCH64.md`, `ROADMAP.md` | this fork |
+| `t715/docs/` | `GO-ARM64.md`, `SPLASH.md`, `RESCUE.md`, `FINDINGS.md`, `PRODUCTION-LOADER.md`, `SMP-DESIGN.md`, `SMP-EXPERIMENT.md`, `SMP-MONITOR.md`, `CPUFREQ-THERMAL.md`, `KERNEL-CONFIG.md`, `ROOTFS-AARCH64.md`, `ROADMAP.md` | this fork |
 | `t715/rootfs/`, `t715/tools/`, `t715/tests/`, `t715/build-arm64.sh` | the aarch64 Omarchy root image, the installer and the health check, their tests, the kernel build | this fork |
 | `CREDITS.md` | who did what, and the licences | this fork |
 | `LICENSE` | MIT, Copyright (c) 2026 meowybnuuy | upstream |
@@ -128,9 +134,11 @@ stock PARAM back before you write one.
 
 What can go wrong:
 
-- **A bad image in PARAM** can leave the tablet in its bootloader. The way back is a stock PARAM
-  image: the loader's installer puts it back (`t715-arm64-install unloader`), or Heimdall flashes it
-  in download mode.
+- **A bad image in PARAM** can leave the tablet in its bootloader. Three ways back, and the first
+  must be in place before the others are needed: the rescue in BOOT
+  ([t715/docs/RESCUE.md](t715/docs/RESCUE.md)), which puts the last loader known to work back by
+  itself; the loader's installer, which puts a stock PARAM back (`t715-arm64-install unloader`);
+  and a stock PARAM image flashed in download mode with Heimdall.
 - **The warranty bit.** As in omarchy-tab-s2, anything that runs here blows the tablet's Knox
   warranty bit for good.
 - **The bring-up arguments open a root shell.** `t715/kernel/config/bootargs-bringup.dts` turns on

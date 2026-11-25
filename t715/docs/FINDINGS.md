@@ -3,7 +3,9 @@
 What was found while porting bnuuyloader to the Galaxy Tab S2 8.0 (SM-T715) and bringing arm64
 Linux up on it: about this tablet's S-Boot, about the loader, and about what arm64 Linux meets on
 this SoC when it is started this way. The loader is described in [../README.md](../README.md), and
-the loader of the daily boot in [PRODUCTION-LOADER.md](PRODUCTION-LOADER.md).
+the loader of the daily boot in [PRODUCTION-LOADER.md](PRODUCTION-LOADER.md). Two later additions,
+the boot screen and the rescue, have their own pages: [SPLASH.md](SPLASH.md) and
+[RESCUE.md](RESCUE.md).
 
 All of it comes from one tablet, with one bootloader. Another Exynos 5433 device may differ: the
 addresses and the calibrated block certainly, the decoder's rounding perhaps.
@@ -146,8 +148,21 @@ loss. The result is one calibrated block, kept as a small JSON file.
 pixel 304. One 8 x 8 block, band 1687, column 38, holds the head's 16 bytes and three spill bytes.
 Pixels 310 and 311 of that row are beyond the width and are never decoded.
 
+**The wide image.** 2048 x 2049 pixels, stride 6144: the whole panel, and one row more. The heap
+head is row 2048, byte 0: block (256, 0), the first block of the last row. S-Boot draws a logo
+from the top corner with nothing cut off (section 22), so the first 1536 columns of the first
+2048 rows are the panel: a picture can live there. The JPEG must then end before the false free
+block, at file offset 0x20000. **[emulator]** The decoder reads the code lengths of the Huffman
+tables from the file (DHT) and takes the symbols in their standard order, whatever order the file
+lists them in; so tables can be built for a file that is black almost everywhere. With libjpeg's
+tables a black wide logo alone takes 116,288 of the 131,072 bytes; with tables built for it,
+67,200. How S-Boot draws, the colours, the room in the file and the making of such a logo:
+[SPLASH.md](SPLASH.md).
+
 **Before any test.** `build_ffree.py --verify` decodes the whole logo with S-Boot's decoder in the
-emulator (about 75 s) and prints the bytes S-Boot will really leave at 0x24F00000.
+emulator (about 75 s; two minutes for the wide logo) and prints the bytes S-Boot will really leave
+at 0x24F00000. It refuses the image unless they are the heap head's, and nothing was written past
+the last row.
 
 Upstream also relies on one calibrated block, `assets/jpeg_heap_header_block.npy`, and encodes the
 rest of its image with Pillow. Its README does not say which decoder that block was calibrated
@@ -353,6 +368,12 @@ archive and 0x700000 is ever looked at (2026-11-24).
 **How S-Boot rewrites it.** It rewrites 0x1A28 bytes of environment at 0x700000 at every boot, so
 a forged image must carry the stock bytes there. The builder copies everything from 0x200000 on
 from the stock image, and refuses an image whose last MiB differs from the stock's.
+
+**It writes more when it boots a kernel itself [hardware]**, a fallback boot included
+(2026-11-25): what differs in PARAM after such a boot starts at 0x700009, in that environment.
+The first 0x700000 bytes, the archive the loader is, are not touched. So a loader is identified by
+the SHA-256 of those bytes, never by the whole partition's: the rescue and
+`t715-arm64-install` do so ([RESCUE.md](RESCUE.md), section 3).
 
 **What the builder checks** before it writes an image: the archive ends at least 1 KiB below
 0x200000; the image has the size of the partition; a bundle starts at least 0x8000 after the end of
@@ -683,6 +704,21 @@ in [PRODUCTION-LOADER.md](PRODUCTION-LOADER.md).
 | **The carry of the ARM32 hash.** The 64-bit FNV-1a written in ARM32 added the carry of an intermediate sum back into the high half. FNV drops it. | about one byte in 10 to 20 million meets it: kernels of 5.6 MB passed by luck, the full kernel of 17 MB did not | `add` without flags, in all five places; a rehearsal case looks for the three bytes that meet it |
 | **A ledger of one boot is not enough.** A failed try ended in a watchdog reset, which makes S-Boot boot RECOVERY; there the loader fell back, and the boot after tried again: a loop that never reached the 32-bit system. | the first boot of the full kernel never came back by itself | the ledger looks at the two boots before (section 2.3 of [../README.md](../README.md)); 27 situations rehearsed |
 | **A search that could run away.** The ring search lowered a position and then compared it with the lowest one; with the lowest one at 0 it wrapped round and went on for ever, before the watchdog is armed. | seen in the rehearsal of an empty ring, never on the tablet | the bound is tested before the step down |
+| **A loader is not the whole of PARAM.** The first rescue compared the partition whole, and S-Boot changes its last MiB at each boot where it starts a kernel itself. | it took its own good loader for a lost one, twice, and restarted after about 7 s each time | the first 0x700000 bytes name the loader ([RESCUE.md](RESCUE.md), section 3) |
+
+## 22. How S-Boot draws its logo
+
+Read on 2026-11-25, when a picture was put in the forged logo. Told in full in
+[SPLASH.md](SPLASH.md).
+
+| Fact | Tag |
+|---|---|
+| `decode_and_draw` (0x23E148D8) decodes the JPEG and draws it row by row from the top left corner; the pixel writer (0x23E14088) stores a 32-bit word at `fb + (1536 * y + x) * 4`. Nothing is cut off, nothing is scaled | [static] |
+| In its 24 bits per pixel path the writer stores `b0 \| b2 << 8 \| b1 << 16`: the decoded pixel's bytes, first, third, second | [static] |
+| The panel shows the decoded pixel as it is: a file that carries the picture's channels in the order B, R, G shows them permuted (the picture's pink came out green) | [hardware] |
+| The decoder calls no allocator during a decode, uses about 2 KiB of stack, and its working memory grows downwards by 24 bytes per pixel column, from about 0x240BD3AC | [emulator] |
+| A logo of 2049 rows whose trapped block is black draws 16 zero bytes over the heap head, and `malloc_large` never returns | [emulator] |
+| The loader's ARM32 code writes 16 bytes at 0x67B00000 for S-Boot's later requests: row 1877 of the screen, pixel 512 | [static], [emulator] |
 
 ## State on 2026-11-25
 
@@ -706,6 +742,10 @@ in [PRODUCTION-LOADER.md](PRODUCTION-LOADER.md).
 - The eight cores (section 17): 2026-11-24.
 - Earlier, on 2026-11-23: the first image of the split design after which the log says "LINUX IS
   BACK", and a control image that "BOOTED, the hijack did not fire".
+- Later on 2026-11-25: the logo covers the whole panel with the colours of the picture (section
+  22), and the loader under it fires at every boot; S-Boot writes its own data at the end of
+  PARAM when it boots a kernel itself (section 10); the rescue in BOOT puts a lost loader back,
+  and the ledger hands two boots to it, then tries arm64 again ([RESCUE.md](RESCUE.md)).
 
 **Built and rehearsed only, or read in code.** The rehearsals in the emulator (the allocator's
 walk, the payload up to its `smc`, the page tables, the vector table, the `eret`, the 27 situations
@@ -716,3 +756,4 @@ of sections 14 and 17 were read in code.
 **Open.** Another unit and another bootloader. The eMMC reader's limits. What died in the first
 boot of the full 17 MB kernel (`kboot5`). Whether the A57 cores themselves run at 1200 MHz or only
 their PLL. Hot-unplug and suspend to RAM without PSCI on arm64. The A57 above 1.2 GHz on arm64.
+RECOVERY with the rescue's image, written and never booted.

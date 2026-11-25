@@ -1,4 +1,4 @@
-# The production loader: kboot1 to kboot6
+# The production loader: kboot1 to kboot7
 
 Written 2026-11-24, completed 2026-11-25. The logs and the images named under `../loader/out/` are
 the record of the tests on the computer that ran them; they are not in this repository.
@@ -336,9 +336,48 @@ system without anyone's help, through a watchdog reset), the choice of the newes
 seen: a cold boot by the power key with the loader in PARAM (S-Boot's counter low, the ring empty:
 case 25 of the rehearsal, "cold": tries).
 
+## 9. `kboot7`: the same loader, a picture in the logo (2026-11-25)
+
+`kboot7` is `kboot6` with another `logo.jpg`: 2048 x 2049 pixels, black almost everywhere, and
+carrying the owner's picture on the panel's 1536 x 2048. The ARM32 code after the JPEG and stage 2
+are `kboot6`'s, byte for byte, and `kboot6` rebuilt with the default geometry is still the image of
+§7.5, byte for byte. Only the logo changed; but the logo is where the exploit is, so everything was
+measured again with S-Boot's own decoder in the emulator. The whole story is in
+[SPLASH.md](SPLASH.md).
+
+| What was checked | Result |
+|---|---|
+| The heap head after the decode | the 16 bytes the loader is forged for, and nothing after the last row: `build_ffree.py --verify` refuses any other image and removes it |
+| What the decoder costs on a logo 2048 wide | no call to the allocator during the decode; the same number of instructions as on `kboot6`'s logo |
+| The rehearsal | the 27 cases: 27 of 27, twice; the ledger against a real ring dump: 6 of 6 |
+
+| Image | What | Outcome |
+|---|---|---|
+| `kboot7-probe` | the logo without its trapped block: 2048 rows, no loader | the picture on the panel; the rescue (below) took it for a lost loader, wrote `kboot6` back and restarted: arm64 again 35 s after the restart |
+| `kboot7-cas1` | the loader, the file's channels ordered `2,0,1` | fired; Omarchy up; the colours permuted |
+| `kboot7-cas2` | the same, ordered `0,2,1` | built, not tried |
+| `kboot7-cas3` | the same, ordered `0,1,2` | fired; Omarchy up; the colours of the picture. **In PARAM since** (fe39aea0…) |
+
+**The rescue behind it.** The 32-bit root had been removed from the tablet that day: a loader that
+did not fire would have left it restarting for good. Before any `kboot7` was written, a rescue was
+put in BOOT (RECOVERY followed): the 32-bit port's own initramfs with one more knob, which writes
+the loader known to work back when PARAM holds neither the stock image nor a loader it knows
+([RESCUE.md](RESCUE.md)). It was first built for `kboot6` alone, then for `kboot7-cas3`, with
+`kboot6` as a loader to leave alone.
+
+**The ledger, seen once more.** One boot not marked up (the mark service disabled for one boot):
+the loader handed the next two boots to BOOT, where the rescue found the loader known to work and
+had nothing to do; the boot after tried arm64 again.
+
+**A trap met.** S-Boot rewrites the end of PARAM whenever it boots a kernel itself, a fallback
+boot included. The first rescue compared the whole partition, so it took its own good loader for a
+lost one at each fallback boot and restarted after about 7 s. Since, a loader is named by PARAM's
+first 7,340,032 bytes, by the rescue and by `t715-arm64-install` alike ([RESCUE.md](RESCUE.md),
+section 3).
+
 ## State on 2026-11-25
 
-**Proven on the tablet.** `kboot6` is in PARAM for good, and the tablet boots Omarchy 4.5 on arm64 by
+**Proven on the tablet.** `kboot6` was in PARAM for good, and the tablet booted Omarchy 4.5 on arm64 by
 itself at every boot: `KBOOT: try`, user space in about 13 s, then the keeper, the USB network and
 sshd (the side of §5.5, now running), then `KBOOT: up` from `t715-kboot-mark`, so the next boot tries
 again. The ledger holds in the field: the bring-up boot without USB was reset by the watchdog and the
@@ -351,8 +390,10 @@ previous kernel, 481a247e…, 00103, with the same tree).
 **Built or rehearsed only.** A corrupt slot on the device and the refusals of stage 2 (record missing
 or corrupt, kernel changed in the memory) are cases of the emulator: not yet seen on the tablet. The
 27 cases pass on two slots (27 of 27), and the ledger is replayed against the tablet's own decisions
-(6 of 6). `kboot4` was built on the Mac only; the tablet runs `kboot6`.
+(6 of 6). `kboot4` was built on the Mac only; the tablet runs `kboot7` (§9): `kboot6`'s code under
+another logo.
 
 **Open.** What died in B1 of `kboot5` (§7.1) is not answered. Points 3, 4, 6 and 8 of §5 are not
-changed. There is no on-tablet way to boot the 32-bit system once: today only
-`t715-arm64-install unloader`, which puts the original PARAM back, for good.
+changed. There is no on-tablet way to boot BOOT's system once: today only
+`t715-arm64-install unloader`, which puts the original PARAM back, for good. Since later that day,
+BOOT and RECOVERY hold the rescue, and no 32-bit system (§9).

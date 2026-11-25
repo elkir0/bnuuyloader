@@ -6,7 +6,7 @@
 |---|---|---|
 | **meowybnuuy**, "bnuuy" | bnuuyloader: the idea of using the boot logo vulnerability to run ARM64 on an Exynos 5433, the loader for the Galaxy Note 4 (SM-N910C), and the monitor call that makes it possible. | https://github.com/meowybnuuy/bnuuyloader, MIT |
 | **UnsignedChad** | The vulnerability: CVE-2026-21155 (SVE-2026-3546), its write-up and proof of concept. | https://github.com/UnsignedChad/CVE-2026-21155-SVE-2026-3546 |
-| **elkir0** | The port to the Galaxy Tab S2 8.0 LTE (SM-T715), and the tablet's 32-bit Linux port that it builds on. | https://github.com/elkir0/omarchy-tab-s2, GPL-2.0-or-later |
+| **elkir0** | The port to the Galaxy Tab S2 8.0 LTE (SM-T715), the picture of its boot screen (`t715/loader/art/`), and the tablet's 32-bit Linux port that it builds on. | https://github.com/elkir0/omarchy-tab-s2, GPL-2.0-or-later |
 | **The Linux kernel developers** | The kernel code that the patches of `t715/kernel/` are made of. | Their SPDX headers: GPL-2.0-only |
 
 In the fork, `t715/rootfs/` also carries build recipes and patches for
@@ -34,6 +34,10 @@ says so in its header.
 
 - The entry rebuilt for this tablet's S-Boot: a forged heap head and a false free block.
 - The forged block calibrated against S-Boot's own decoder, run in an emulator.
+- A picture on the whole panel in the forged logo, drawn by S-Boot itself before any kernel, with
+  Huffman tables built for the file to make room for it (`t715/docs/SPLASH.md`).
+- A rescue in BOOT and RECOVERY that writes the loader known to work back when PARAM holds none
+  (`t715/rescue/`, `t715/docs/RESCUE.md`).
 - The hand-back to S-Boot, and a ledger in S-Boot's RAM log ring that gives the tablet back to its
   own kernel after a failed attempt.
 - Stage 2 at EL2 in C, with exceptions caught, the MMU and the caches on.
@@ -52,7 +56,8 @@ repository are under four licences; a file's SPDX line wins.
 | Files | Licence |
 |---|---|
 | Upstream's: the root files, `src/`, `assets/` | MIT, Copyright (c) 2026 meowybnuuy |
-| The port's own sources: `t715/loader/scripts/`, `t715/loader/stage2/`, `t715/loader/el1/`, `t715/tools/t715-arm64-install`, and the documents `t715/README.md`, `t715/docs/FINDINGS.md`, `t715/docs/PRODUCTION-LOADER.md`, `CREDITS.md` | MIT, Copyright (c) 2026 elkir0; those derived from upstream carry his notice too |
+| The port's own sources: `t715/loader/scripts/`, `t715/loader/stage2/`, `t715/loader/el1/`, `t715/loader/art/` (the picture of the boot screen and its preview), `t715/tools/t715-arm64-install`, and the documents `t715/README.md`, `t715/docs/FINDINGS.md`, `t715/docs/PRODUCTION-LOADER.md`, `t715/docs/SPLASH.md`, `t715/docs/RESCUE.md`, `t715/docs/GO-ARM64.md`, `CREDITS.md` | MIT, Copyright (c) 2026 elkir0; those derived from upstream carry their notice too |
+| `t715/rescue/`: the patch to omarchy-tab-s2's `boot/`, and its page | GPL-2.0-or-later, as omarchy-tab-s2, the tree it is made for |
 | `t715/kernel/patches/` and the kernel files under `t715/kernel/` | GPL-2.0-only, as the kernel: the SPDX headers of the files they change |
 | `t715/loader/tools/seclog_dump/seclog_dump.c` | GPL-2.0 |
 | Everything else under `t715/` in the fork: `t715/kernel/` build scripts and configuration, `t715/rootfs/`, `t715/tools/t715-arm64-health`, `t715/tests/`, `t715/build-arm64.sh`, and the other documents of `t715/docs/` | GPL-2.0-or-later, as omarchy-tab-s2, unless a file says otherwise |
@@ -61,5 +66,11 @@ No Samsung firmware, blob or dump is in this repository.
 
 ## AI assistance
 
-bnuuy discloses his in his README. The port to the Tab S2 was made with AI coding agents as well;
-its kernel patches carry their co-author lines.
+bnuuy discloses their use in the README. The port to the Tab S2 was made with AI coding agents as
+well; its kernel patches carry their co-author lines.
+
+The picture of the boot screen, `t715/loader/art/splash-bnuuy-and-me.png`, is the one the owner
+gave for it. The file they provided carried Google's content credentials, which say it was created
+with Google's generative AI and resized there. What is published here is its pixels alone, as a
+plain PNG: the credentials, with their time stamps, were left out. The loader built from it is the
+one on the owner's tablet, byte for byte.

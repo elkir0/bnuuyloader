@@ -194,7 +194,9 @@ def main() -> int:
                                                         "kernel and tree with a byte of each changed, hashed again)")
     parser.add_argument("--ring", type=Path, default=None, help="a dump made with tools/seclog_dump (default: the latest)")
     args = parser.parse_args()
-    ring = args.ring or max(DUMPS.glob("seclog-*.raw"), key=lambda p: p.stat().st_mtime)
+    ring = args.ring or max((p for p in DUMPS.glob("seclog-*.raw") if p.stat().st_size), key=lambda p: p.stat().st_mtime)
+    if not ring.stat().st_size:
+        raise SystemExit(f"{ring.name} is empty: a dump that failed; name one that is not with --ring")
     good = args.slot_good.read_bytes()
     other = args.slot_other.read_bytes() if args.slot_other else another(good)
     if not (bs.slot_is_sound(good) and bs.slot_is_sound(other)):
