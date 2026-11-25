@@ -1,3 +1,26 @@
+<p align="center"><img src="https://github.com/meowybnuuy/bnuuyloader/blob/main/bnuuy.gif?raw=true" width="128" height="128"></p>
+<h1 align="center">bnuuyloader</h1>
+
+Bnuuys have invaded the Exynos 5433 SoC, allowing it to run ARM64 code!
+
+This is a fork of [meowybnuuy/bnuuyloader](https://github.com/meowybnuuy/bnuuyloader), by **bnuuy**.
+It adds a port to the Samsung Galaxy Tab S2 8.0 LTE (SM-T715), under `t715/`. The files at the top
+level are upstream's, as they are.
+
+| Go to | |
+|---|---|
+| The Note 4 loader, upstream | [Upstream: bnuuyloader, by bnuuy](#upstream-bnuuyloader-by-bnuuy) |
+| The Tab S2 port | [This fork: Galaxy Tab S2 8.0 (SM-T715)](#this-fork-galaxy-tab-s2-80-sm-t715) |
+| Who made what, and under which licence | [CREDITS.md](CREDITS.md) |
+
+## Upstream: bnuuyloader, by bnuuy
+
+bnuuyloader is a proof of concept by meowybnuuy ("bnuuy"). It abuses a vulnerability in the boot
+logo of Samsung's Exynos 5433 bootloader, CVE-2026-21155, to run ARM64 code on a Galaxy Note 4
+(SM-N910C). Everything between the two marks below is bnuuy's README, word for word; only the
+levels of its headings are lowered, so that it sits inside this section.
+
+<!-- UPSTREAM-START -->
 > [!NOTE]
 > bnuuyloader is not intended for normal users yet, for now, it is intended for advanced users and developers. I've also only tested this on the Note 4 Exynos (N910C), you will probably have to make your own changes to make your device work, PRs are very much appreciated. \
 > \
@@ -8,7 +31,7 @@
 
 Bnuuys have invaded the Exynos 5433 SoC, allowing it to run ARM64 code!
 
-## Why make this and how does it work?
+### Why make this and how does it work?
 I like the Note 4 Exynos (specifically N910C) quite a lot, in my opinion, it represents one of the last ever best Android phones released, due to all of the features it has. But, there is a problem preventing the SoC from aging very well, Samsung intentionally limited the SoC to ARM32 (ARMv7) in software, despite the SoC supporting ARM64.
 
 This means that any OS is forced to use legacy ARM32 (ARMv7), which has been slowly phased out over time, making software compatibility worsen over time.
@@ -17,31 +40,110 @@ Making matters worse, the software which makes the SoC start in ARM32 is apart o
 
 However, thanks to [UnsignedChad's CVE-2026-21155](https://github.com/UnsignedChad/CVE-2026-21155-SVE-2026-3546), we can get code execution inside S-Boot, which runs in EL2, letting us run our own code early enough to switch the SoC back into ARM64 and implement our own tiny bootloader!
 
-## Caveats
+### Caveats
 - Trusted Firmware-A does not exist, you will have to use legacy SMC calls to bring up the other cores, which means they will startup in ARM32 and you'll have to switch them to ARM64. This is very hacky, but it works. Also, the boot core is Cortex-A53.
 - The bootloader is probably not very good, it was just enough to boot mainline Linux just enough in an Android boot image. My hope is that by getting this out, that it can be improved by others.
 - Probably others I am forgetting...
 
-## Other devices
-
-- **Galaxy Tab S2 8.0 LTE (SM-T715)**: a port is in [`t715/`](t715/README.md), with a loader of its own for this tablet's S-Boot. That loader hands control back to S-Boot when it has nothing to start, reads the kernel through S-Boot's own eMMC reader and starts it only if a hash matches, keeps the kernel in two slots of the CACHE partition, and gives the tablet back to its own kernel after a failed boot. It starts the tablet with all eight cores in 64 bits, every day. What was found about this S-Boot and about arm64 Linux on it is in [`t715/docs/FINDINGS.md`](t715/docs/FINDINGS.md).
-
-## Building
+### Building
 To build a PARAM image (which contains bnuuyloader), you will need the `sboot.bin` and `param.bin` for your device (the S-Boot and PARAM must match the firmware on your device). You will also need LLVM/Clang to crosscompile the AArch32/AArch64 parts of bnuuyloader, as well as Python to run the build script.
 
 You first need to install the dependencies `python3 -m pip install -r requirements.txt`, then you can run `python3 build.py --stock-param <path to original param> --sboot <path to original sboot>`. If everything goes right, it should build a `PARAM_bnuuyloader.tar`, which you can flash using Odin.
 
 This has only been tested on the Note 4 Exynos, with firmware `N910CXXS2DRI2`, it may need adjusting for other firmwares, you may need to edit `payload_layout.py` if any issues occur.
 
-The allocator's signature is the same code on other Exynos 5433 devices, but the heap base in the literal pool after it is not: `build.py --heap-base 0x24F00000` finds the place in the SM-T715's S-Boot, where the default refuses and names the heap base it met.
-
 Please bare in mind that bnuuyloader does not support booting AArch32 kernels, it is assumed that you are using bnuuyloader to only run AArch64 kernels, as that is the main point of bnuuyloader.
 
 To boot an AArch64 kernel, you need to wrap it in an Android boot image (`boot.img`) and flash it to your device using Odin. However, you can also just change the boot image loading behavior to suit your needs better.
 
-## LLM disclosure
+### LLM disclosure
 Unfortunately, I must admit that LLM assistance was used in the making of bnuuyloader. If you are turned off by this, I am sorry. My intent *was/is* to get this out there so that perhaps more cleaner implementations could be done, it shouldn't be that painful. PRs are appreciated if you'd like to clean it up, although I feel as if this code is already pretty clean. In the middle of attempting to clean this project up, my Note 4 Exynos died.
 
 My hope is that by disclosing this here that you will understand that I am trying to act in good faith by being honest about how it was used, I am not here to make arguments for or against LLM assistance.
 
 I am not interested in being a shill for AI, if you are looking to promote this project on your AI-centric Twitter page or blog, please leave me alone, I am not interested in being a hypebeast.
+<!-- UPSTREAM-END -->
+
+## This fork: Galaxy Tab S2 8.0 (SM-T715)
+
+The same SoC, in a tablet. Its owner, elkir0, ran a 32-bit Linux on it
+([omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2)) and wanted an arm64 one. This port is
+that work. It is not affiliated with bnuuy, with Samsung, or with Omarchy.
+
+### State on 2026-11-25
+
+Tested on one tablet: bootloader `T715XXU2CRH1`, hardware revision 9. For developers.
+
+| What | State |
+|---|---|
+| ARM32 code inside S-Boot, from a forged boot logo | works, and hands control back to S-Boot |
+| AArch64 at EL2, through the same monitor call as upstream | works, on the boot core and on the others |
+| The production loader, in PARAM for good | runs at every boot of the tablet since 2026-11-25 |
+| Linux 6.12.114 arm64, read from a slot of the CACHE partition, hashed, started at EL1 | works, with its eight cores |
+| Omarchy 4.5 on arm64 as the tablet's daily system | user space in about 13 s; a soak of three hours with eight busy cores |
+| The way back after a failed attempt | seen on the tablet: the 32-bit system came back by itself |
+| Another unit, another firmware | not tried |
+
+What was found about this tablet's S-Boot and about arm64 Linux on it is written up in
+[`t715/docs/FINDINGS.md`](t715/docs/FINDINGS.md). How the loader works and how to work with it:
+[`t715/README.md`](t715/README.md).
+
+### How the Tab S2 port differs
+
+| | Upstream, the Note 4 | This port, the Tab S2 |
+|---|---|---|
+| Entry | a forged heap node; the large-heap split writes over a saved return address | the same principle, rebuilt for this S-Boot: a forged heap head and a false free block |
+| Finding the place in S-Boot | a byte signature, kept only with the Note 4's values | the same signature is in this S-Boot, once, with another heap base; the place was read in the code, with the tools in `t715/loader/scripts/` |
+| The forged JPEG block | calibrated once, shipped in `assets/` | calibrated against S-Boot's own decoder, run in an emulator |
+| After the monitor call | never returns to S-Boot | hands back to S-Boot whenever it can |
+| At EL2 | a stack, then C | exceptions caught, MMU and caches on, then C |
+| Storage | its own eMMC driver; an Android boot image | S-Boot's own reader; a raw kernel image and a device tree, hashed, in two slots of a partition |
+| After a failed boot | a halt | the tablet's own kernel at the next boots |
+| The other cores | "legacy SMC calls": they start in ARM32 and must be switched | an enable-method of the kernel's own: each core switches itself (the same monitor call) |
+| Screen | 1440 x 2560 | 1536 x 2048; same framebuffer base, same display registers |
+
+### Layout
+
+| Path | What | From |
+|---|---|---|
+| `build.py`, `compiler_util.py`, `payload_layout.py`, `sboot_util.py`, `requirements.txt`, `src/`, `assets/`, `bnuuy.gif` | the Note 4 loader | upstream |
+| `t715/README.md` | the Tab S2 loader: how it works, how to work with it | this fork |
+| `t715/loader/` | the loader's sources: `scripts/`, `stage2/`, `el1/`, and the ring reader `tools/seclog_dump/` | this fork |
+| `t715/kernel/` | `patches/`: the nine kernel patches; `README.md`; `test-kernel/`: the first test kernel; `smp/`: the eight-core method as a patch series; `config/`: the daily kernel's configuration and build notes | this fork |
+| `t715/docs/` | `FINDINGS.md`, `PRODUCTION-LOADER.md`, `SMP-DESIGN.md`, `SMP-EXPERIMENT.md`, `SMP-MONITOR.md`, `CPUFREQ-THERMAL.md`, `KERNEL-CONFIG.md`, `ROOTFS-AARCH64.md`, `ROADMAP.md` | this fork |
+| `t715/rootfs/`, `t715/tools/`, `t715/tests/`, `t715/build-arm64.sh` | the aarch64 Omarchy root image, the installer and the health check, their tests, the kernel build | this fork |
+| `CREDITS.md` | who did what, and the licences | this fork |
+| `LICENSE` | MIT, Copyright (c) 2026 meowybnuuy | upstream |
+
+### What you must provide yourself
+
+Two files of **your own** tablet, which no script of this repository makes and which must never be
+committed or shared: they are Samsung's firmware, and the second also holds what S-Boot writes
+there. They go in `t715/loader/dumps/`: see "What you need" in [`t715/README.md`](t715/README.md).
+
+## Before you touch a tablet
+
+**Own device only.** This is a bootloader exploit. It writes the PARAM partition. Know how to put a
+stock PARAM back before you write one.
+
+What can go wrong:
+
+- **A bad image in PARAM** can leave the tablet in its bootloader. The way back is a stock PARAM
+  image: the loader's installer puts it back (`t715-arm64-install unloader`), or Heimdall flashes it
+  in download mode.
+- **The warranty bit.** As in omarchy-tab-s2, anything that runs here blows the tablet's Knox
+  warranty bit for good.
+- **The bring-up arguments open a root shell.** `t715/kernel/config/bootargs-bringup.dts` turns on
+  `t715.usbshell=1`: a root shell over telnet, with no password, on the USB cable. It is for
+  bringing a system up, with a cable to one's own computer. The daily arguments do not have it:
+  never leave it on.
+- **Frequencies and voltages.** The Exynos 5433 has no safe generic table. On this tablet,
+  mainline's OPP tables are below what its chip needs: by 25 mV on the A57 and 50 mV on the A53 at
+  1200 MHz, by up to 75 mV lower down. Every chip has its own group. A driver that scales a clock
+  without its supply, or a table that is not the chip's own, computes wrong: wrong hashes, crashes,
+  then a hang, with no message. The loader changes no clock and no voltage. The kernel patches
+  scale nothing beyond what the 32-bit port validated, on the chip's own tables.
+- **The partitions never to write**, in the words of omarchy-tab-s2: RADIO, CDMA-RADIO, EFS,
+  m9kefs1-3, BOOTLOADER, PARAM and BOTA. This port writes PARAM, where the loader's image lives,
+  and CACHE, where the kernel's two slots live. The rule about PARAM is the owner's own exception,
+  decided on 2026-11-24: the exploit is the case it did not cover.
