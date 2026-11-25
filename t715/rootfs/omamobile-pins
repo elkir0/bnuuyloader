@@ -1,0 +1,24 @@
+# omamobile-pins — the Omarchy Mobile packages this image takes from the
+# project's signed repository (https://pkgs.omamobile.org/stable/aarch64),
+# one per line: name<TAB>upstream_filename<TAB>sha256. tools/fetch-omamobile
+# downloads exactly these files, checks each against its pin, against the
+# signed repository index omamobile.db (the pin must be the digest the index
+# carries) and against its detached signature, made by a key of
+# omamobile-keyring (itself pinned here: the first line), whose keys must all
+# be listed in omamobile-trusted.fpr.
+#
+# The pins are the owner's other tablet port's (Lenovomarchy,
+# image/tools/repack.omamobile.pins and the keyring pin of its
+# tools/repack-omamobile), checked again on 2026-11-24. Taken for the SM-T715:
+#   omamobile-settings  Omarchy Mobile's Settings app (About, Display)
+#   omamobile-remote    drives the session over ssh: screenshots, taps, keys,
+#                       apps (enables nothing by itself); the owner's tool for
+#                       the bring-up
+#   wlrctl              the virtual pointer and keyboard omamobile-remote uses
+# Not taken: omacam (no camera driver on arm64 yet), the phone's packages.
+#
+# name	upstream_filename	sha256
+omamobile-keyring	omamobile-keyring-20261026-1-any.pkg.tar.zst	83684eeda2ae7e1929109b0a65ede42bc174e7f00fa093dc69243714a2b125a0
+omamobile-settings	omamobile-settings-0.1.2-1-aarch64.pkg.tar.zst	0fef7c41696c1f7c74c6fc120cf49da7c95db8cd903b41544b5da49c2da6865e
+omamobile-remote	omamobile-remote-0.1.2-1-any.pkg.tar.zst	08874d7b7053728c6dc6383f820aeb6dc5673ae30b15b86a01c3254867238ae8
+wlrctl	wlrctl-0.2.2-1-aarch64.pkg.tar.zst	ed897fd2c06de4e66b91d8e96c8c78f03bdc5fb57b301df380e77f242cbefb09
