@@ -1,0 +1,32 @@
+// What the arm64 kernel of the SM-T715 is told at start.
+//
+// This overlay changes ONE thing: the `bootargs` property of /chosen.  It does not disable any
+// node: the full kernel has the power domain driver, so the clock units that sit in a power
+// domain can stay enabled (the minimal test kernel needed them off).
+//
+// To change the kernel's arguments, edit `bootargs` below and run build-arm64.sh: it compiles
+// this file, applies it to gts28ltexx-base.dtb and writes gts28ltexx-bootargs.dtb.  The script
+// fails if the result differs from the base by anything but this property.
+//
+// The device tree carries the arguments: the kernel's built-in command line (CONFIG_CMDLINE, the
+// release's string) is used only when the device tree has no bootargs at all.
+//
+// The arguments, as the owner specified them:
+//   console=sec_log sec_log=0x200000@0x26000000   the kernel log goes to Samsung's RAM ring
+//   loglevel=8 printk.devkmsg=on initcall_debug   verbose: every line, every start-up step named
+//   nosmp                                         one core until the others are brought up
+//   clk_ignore_unused pd_ignore_unused regulator.ignore_unused=1
+//                                                 nothing switched off for being unused
+//   panic=5 oops=panic                            a crash ends in a restart
+//   s3c2410_wdt.tmr_atboot=1                      the watchdog runs from the start
+//   watchdog.handle_boot_enabled=0                and the kernel never feeds it
+/dts-v1/;
+/plugin/;
+/ {
+    fragment@0 {
+        target-path = "/chosen";
+        __overlay__ {
+            bootargs = "console=sec_log sec_log=0x200000@0x26000000 loglevel=8 printk.devkmsg=on initcall_debug nosmp clk_ignore_unused pd_ignore_unused regulator.ignore_unused=1 panic=5 oops=panic s3c2410_wdt.tmr_atboot=1 watchdog.handle_boot_enabled=0";
+        };
+    };
+};

@@ -1,0 +1,65 @@
+--- a/arch/arm64/lib/delay.c
++++ b/arch/arm64/lib/delay.c
+@@ -40,8 +40,25 @@
+ 
+ void __delay(unsigned long cycles)
+ {
+-	cycles_t start = __delay_cycles();
++	cycles_t start;
+ 
++	/*
++	 * No architected timer came up (Exynos 5433: its bootloader leaves the system
++	 * counter stopped, and the Exynos MCT keeps time, see time_init()).  CNTVCT would
++	 * never advance, so count iterations of this loop: it is what loops_per_jiffy was
++	 * calibrated on.
++	 */
++	if (!arch_timer_get_rate()) {
++		asm volatile(
++		"1:	subs	%0, %0, #1\n"
++		"	b.hi	1b"
++		: "=r" (cycles)
++		: "0" (cycles));
++		return;
++	}
++
++	start = __delay_cycles();
++
+ 	if (alternative_has_cap_unlikely(ARM64_HAS_WFXT)) {
+ 		u64 end = start + cycles;
+ 
+--- a/arch/arm64/kernel/time.c
++++ b/arch/arm64/kernel/time.c
+@@ -25,6 +25,7 @@
+ #include <linux/delay.h>
+ #include <linux/clocksource.h>
+ #include <linux/of_clk.h>
++#include <linux/of.h>
+ #include <linux/acpi.h>
+ 
+ #include <clocksource/arm_arch_timer.h>
+@@ -62,11 +63,21 @@
+ 	tick_setup_hrtimer_broadcast();
+ 
+ 	arch_timer_rate = arch_timer_get_rate();
+-	if (!arch_timer_rate)
+-		panic("Unable to initialise architected timer.\n");
++	if (!arch_timer_rate && of_machine_is_compatible("samsung,exynos5433")) {
++		/*
++		 * Exynos 5433: its bootloader leaves the system counter stopped
++		 * (CNTFRQ_EL0 reads 0 and CNTPCT_EL0 never moves at EL2), so there is no
++		 * architected timer.  The Exynos MCT keeps time, as it does for ARM32; the
++		 * delay loop is calibrated on the jiffies (arch/arm64/lib/delay.c).
++		 */
++		pr_info("architected timer absent: the system counter does not run; the MCT keeps time\n");
++	} else {
++		if (!arch_timer_rate)
++			panic("Unable to initialise architected timer.\n");
+ 
+-	/* Calibrate the delay loop directly */
+-	lpj_fine = arch_timer_rate / HZ;
++		/* Calibrate the delay loop directly */
++		lpj_fine = arch_timer_rate / HZ;
++	}
+ 
+ 	pv_time_init();
+ }

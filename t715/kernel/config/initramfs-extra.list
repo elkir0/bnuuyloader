@@ -1,0 +1,8 @@
+# added to kernel-out/initramfs-root (CONFIG_INITRAMFS_SOURCE): the console the kernel opens before init
+dir /dev 0755 0 0
+nod /dev/console 0600 0 0 c 5 1
+nod /dev/null 0666 0 0 c 1 3
+dir /sys 0555 0 0
+dir /proc 0555 0 0
+dir /run 0755 0 0
+dir /tmp 01777 0 0

@@ -1,0 +1,20 @@
+# Decisions of the arm64 translation of the release configuration (SM-T715).
+#
+# One kernel configuration line per decision.  build-arm64.sh applies these lines on top of
+# config-release-arm32 (a line replaces the symbol's own line of the release file, or adds it),
+# then runs `make olddefconfig`.  Everything else is the release configuration as arm64 keeps it.
+#
+# Experiments go in config-arm64.local (same syntax, applied after this file): create it, add
+# lines, run build-arm64.sh, delete the file when done.
+#
+# The 153 symbols the release has and arm64 cannot have, and the 231 arm64 adds, are listed with
+# their reason in config-arm64.gone and config-arm64.new.  The script checks the result against
+# those two files and writes config-report.md from them.
+#
+# COMPILE_TEST is not set: the 17 release symbols that need it to exist on arm64 do nothing on
+# this board (config-arm64.gone, "prompt only `if COMPILE_TEST`").
+#
+# Virtual address space: 39 bits (the owner's decision; the SoC's devices and RAM fit in 40 bits).
+# The arm64 default is 52 bits.  With 4 KiB pages this one choice also gives 48-bit physical
+# addresses, no ARM64_LPA2 and 3 page-table levels instead of 5.
+CONFIG_ARM64_VA_BITS_39=y

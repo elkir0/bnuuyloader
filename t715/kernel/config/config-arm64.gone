@@ -1,0 +1,153 @@
+# SYMBOL	VALUE	REASON
+AEABI	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ALIGNMENT_TRAP	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARCH_32BIT_OFF_T	y	a 32-bit ABI property: off_t is 32 bits only in a 32-bit kernel  Kconfig: depends on !64BIT
+ARCH_EXYNOS3	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+ARCH_EXYNOS4	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+ARCH_EXYNOS5	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+ARCH_FLATMEM_ENABLE	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the flat memory model of the 32-bit kernel. arm64 uses SPARSEMEM (new =y)
+ARCH_HAS_BINFMT_FLAT	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (uClinux flat binaries of small 32-bit systems)
+ARCH_HAS_CPU_CACHE_ALIASING	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+ARCH_HAS_CPU_FINALIZE_INIT	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+ARCH_HAS_DMA_ALLOC	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (arm64 selects DMA_DIRECT_REMAP and needs neither)
+ARCH_HAS_DMA_OPS	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (arm64 selects DMA_DIRECT_REMAP and needs neither)
+ARCH_HAS_TEARDOWN_DMA_OPS	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (arm64 selects DMA_DIRECT_REMAP and needs neither)
+ARCH_MIGHT_HAVE_PC_PARPORT	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+ARCH_MULTIPLATFORM	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARCH_MULTI_V6_V7	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARCH_MULTI_V7	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARCH_OPTIONAL_KERNEL_RWX	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (arm64 marks the kernel read-only unconditionally: STRICT_KERNEL_RWX, unchanged =y)
+ARCH_OPTIONAL_KERNEL_RWX_DEFAULT	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (arm64 marks the kernel read-only unconditionally: STRICT_KERNEL_RWX, unchanged =y)
+ARCH_SELECT_MEMORY_MODEL	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the flat memory model of the 32-bit kernel. arm64 uses SPARSEMEM (new =y)
+ARCH_USE_BUILTIN_BSWAP	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+ARCH_WANT_FLAT_DTB_INSTALL	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARCH_WANT_GENERAL_HUGETLB	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+ARCH_WANT_IPC_PARSE_VERSION	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+ARM	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 32-bit architecture itself
+ARM_CCI	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (the CCI-400 interconnect driver; on arm32 only its 32-bit port-control user, ARM_CCI400_PORT_CTRL, needed it)
+ARM_CCI400_COMMON	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (the CCI-400 interconnect driver; on arm32 only its 32-bit port-control user, ARM_CCI400_PORT_CTRL, needed it)
+ARM_CCI400_PORT_CTRL	y	32-bit only: `depends on ARM && OF && CPU_V7`. Lets a CPU enable its own CCI-400 port (cci_enable_port_for_self): mcpm-exynos.c uses it when a cluster comes up. Cluster management of the 32-bit port; the arm64 port's secondary cores are another workstream's
+ARM_CPU_SUSPEND	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the suspend-to-RAM code the release enables with exynos5433_sleep=. Suspend to RAM is lost on arm64 until it is ported
+ARM_CPU_TOPOLOGY	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARM_DMA_MEM_BUFFERABLE	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARM_ERRATA_643719	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARM_HAS_GROUP_RELOCS	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARM_HEAVY_MB	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARM_L1_CACHE_SHIFT_6	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARM_LPAE	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARM_LPAE: the 32-bit large physical address extension)
+ARM_MODULE_PLTS	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARM_PAN	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: privileged access never for the 32-bit kernel (ARM_PAN, and its TTBR0 form with LPAE). arm64 has ARM64_PAN (new =y)
+ARM_PATCH_IDIV	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARM_PATCH_PHYS_VIRT	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: boot plumbing of the 32-bit zImage (ATAGS, self-relocation, flat tree switch). The arm64 Image takes the device tree and is relocated by its own head code
+ARM_THUMB	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ARM_UNWIND	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 32-bit stack unwinder. arm64 uses frame pointers (FRAME_POINTER, new =y)
+ARM_VIRT_EXT	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+AS_VFP_VMRS_FPINST	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+ATAGS	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: boot plumbing of the 32-bit zImage (ATAGS, self-relocation, flat tree switch). The arm64 Image takes the device tree and is relocated by its own head code
+AUTO_ZRELADDR	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: boot plumbing of the 32-bit zImage (ATAGS, self-relocation, flat tree switch). The arm64 Image takes the device tree and is relocated by its own head code
+BINFMT_FLAT_ARGVP_ENVP_ON_STACK	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (uClinux flat binaries of small 32-bit systems)
+BOUNCE	y	bounce buffers exist for high memory, which arm64 does not have  Kconfig: depends on BLOCK && MMU && HIGHMEM
+CACHE_L2X0	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the L2 cache controller driver of the 32-bit multi-platform kernel (L2C-210/220/310; the Exynos 5433 does not use it)
+CC_HAVE_STACKPROTECTOR_TLS	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CLKSRC_SAMSUNG_PWM	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). The S3C/S5P PWM timer clock source. The board's one PWM node is the PWM peripheral (pwm-samsung.c), which the MCT does not need
+CMDLINE_EXTEND	y	does not exist on arm64. The arm64 choice is CMDLINE_FROM_BOOTLOADER (default, new =y) or CMDLINE_FORCE: the built-in CMDLINE string is used only when the device tree carries no bootargs, instead of being appended to them
+CPU_32v6K	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_32v7	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_ABRT_EV7	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_CACHE_V7	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_CACHE_VIPT	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_COPY_V6	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_CP15	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_CP15_MMU	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_EXYNOS4210	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+CPU_HAS_ASID	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_PABRT_V7	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_SPECTRE	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 32-bit Spectre hardening. arm64 has its own, both new =y: SPECTRE_V2 and MITIGATE_SPECTRE_BRANCH_HISTORY
+CPU_THUMB_CAPABLE	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_TLB_V7	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CPU_TTBR0_PAN	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: privileged access never for the 32-bit kernel (ARM_PAN, and its TTBR0 form with LPAE). arm64 has ARM64_PAN (new =y)
+CPU_V7	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+CURRENT_POINTER_IN_TPIDRURO	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+DEBUG_ALIGN_RODATA	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+EDAC_ATOMIC_SCRUB	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+EXYNOS_3250_COMMON_CLK	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). Clock units of the Exynos 3250, not of the Exynos 5433. The release built them through the 32-bit set; the 5433's units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y), which the release already built as well
+EXYNOS_4_COMMON_CLK	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). Clock units of the Exynos 4, not of the Exynos 5433. The release built them through the 32-bit set; the 5433's units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y), which the release already built as well
+EXYNOS_5250_COMMON_CLK	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). Clock units of the Exynos 5250, not of the Exynos 5433. The release built them through the 32-bit set; the 5433's units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y), which the release already built as well
+EXYNOS_5260_COMMON_CLK	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). Clock units of the Exynos 5260, not of the Exynos 5433. The release built them through the 32-bit set; the 5433's units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y), which the release already built as well
+EXYNOS_5410_COMMON_CLK	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). Clock units of the Exynos 5410, not of the Exynos 5433. The release built them through the 32-bit set; the 5433's units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y), which the release already built as well
+EXYNOS_5420_COMMON_CLK	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). Clock units of the Exynos 5420/5800, not of the Exynos 5433. The release built them through the 32-bit set; the 5433's units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y), which the release already built as well
+EXYNOS_ASV_ARM	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). ASV tables for Exynos 5422/5800 only (exynos-asv.c: product id 0xE5422000, else "No ASV support for this SoC"). The board's own drivers EXYNOS5433_ATLAS_ASV and EXYNOS5433_G3D_ABB stay built in
+EXYNOS_CPU_SUSPEND	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the suspend-to-RAM code the release enables with exynos5433_sleep=. Suspend to RAM is lost on arm64 until it is ported
+EXYNOS_IRQ_COMBINER	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). The interrupt combiner: the board's device tree has no combiner node and no user of it (0 occurrences in the preprocessed tree)
+EXYNOS_MCPM	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration. The 32-bit port's cluster power management (arch/arm/mach-exynos/mcpm-exynos.c): a cluster powers down and up as a whole, and turns its CCI port on when it comes up. The arm64 port needs its own (SMP workstream)
+EXYNOS_PMU_ARM_DRIVERS	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). PMU tables for Exynos 3250/4210/4212/4412/5250/5420 only; the `samsung,exynos5433-pmu` entry carries no data (exynos-pmu.c)
+EXYNOS_REGULATOR_COUPLER	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). It registers its coupler only on `samsung,exynos5800` (exynos-regulator-coupler.c: of_machine_is_compatible); the board is `samsung,exynos5433`. It has never acted on this board
+EXYNOS_SROM	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). and inside `if SAMSUNG_MC`. The SROM controller: the board's device tree has no srom node
+FLATMEM	y	flat memory: follows FLATMEM_MANUAL, which arm64 cannot select (SPARSEMEM is set)
+FLATMEM_MANUAL	y	the flat memory model is not offered when the architecture uses SPARSEMEM  Kconfig: depends on !ARCH_SPARSEMEM_ENABLE || ARCH_FLATMEM_ENABLE
+GENERIC_IRQ_MULTI_HANDLER	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+GENERIC_VDSO_32	y	the vDSO of 32-bit kernels  Kconfig: depends on GENERIC_GETTIMEOFDAY && !64BIT
+GIC_NON_BANKED	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (the GIC option of 32-bit SoCs whose banked registers are not banked)
+HARDEN_BRANCH_HISTORY	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 32-bit Spectre hardening. arm64 has its own, both new =y: SPECTRE_V2 and MITIGATE_SPECTRE_BRANCH_HISTORY
+HARDEN_BRANCH_PREDICTOR	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 32-bit Spectre hardening. arm64 has its own, both new =y: SPECTRE_V2 and MITIGATE_SPECTRE_BRANCH_HISTORY
+HAVE_ARCH_PFN_VALID	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+HAVE_ARM_ARCH_TIMER	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+HAVE_ARM_SCU	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+HAVE_DYNAMIC_FTRACE_WITH_REGS	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+HAVE_EXIT_THREAD	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+HAVE_IRQ_EXIT_ON_IRQ_STACK	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+HAVE_KERNEL_GZIP	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (compressors of the 32-bit zImage; the arm64 Image is not compressed)
+HAVE_KERNEL_LZ4	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (compressors of the 32-bit zImage; the arm64 Image is not compressed)
+HAVE_KERNEL_LZMA	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (compressors of the 32-bit zImage; the arm64 Image is not compressed)
+HAVE_KERNEL_LZO	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (compressors of the 32-bit zImage; the arm64 Image is not compressed)
+HAVE_KERNEL_XZ	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (compressors of the 32-bit zImage; the arm64 Image is not compressed)
+HAVE_LD_DEAD_CODE_DATA_ELIMINATION	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+HAVE_OPTPROBES	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+HAVE_PROC_CPU	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+HAVE_SMP	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+HAVE_UID16	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (16-bit UID system calls of the 32-bit ABI)
+HIGHMEM	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: high memory of the 32-bit kernel. arm64 has none: the whole 3 GiB is mapped directly
+HIGHPTE	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: high memory of the 32-bit kernel. arm64 has none: the whole 3 GiB is mapped directly
+IRQSTACKS	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+KERNEL_XZ	y	the XZ-compressed 32-bit zImage: needs HAVE_KERNEL_XZ, which arm64 does not set  Kconfig: depends on HAVE_KERNEL_XZ
+KMAP_LOCAL	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+KMAP_LOCAL_NON_LINEAR_PTE_ARRAY	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+KUSER_HELPERS	y	kuser helpers of the 32-bit user ABI: offered only inside `if COMPAT`, and COMPAT stays off
+MCPM	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration. The 32-bit port's cluster power management (arch/arm/mach-exynos/mcpm-exynos.c): a cluster powers down and up as a whole, and turns its CCI port on when it comes up. The arm64 port needs its own (SMP workstream)
+MIGHT_HAVE_CACHE_L2X0	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the L2 cache controller driver of the 32-bit multi-platform kernel (L2C-210/220/310; the Exynos 5433 does not use it)
+MODULES_USE_ELF_REL	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (arm64 modules use RELA relocations: MODULES_USE_ELF_RELA, new =y)
+NEED_SRCU_NMI_SAFE	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (needs an NMI controller; the Exynos 5433 has none)
+NEON	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 32-bit FPU and SIMD switches. arm64 has them always; the kernel may use NEON (KERNEL_MODE_NEON, new =y)
+NET_VENDOR_CIRRUS	y	`depends on ARM || COMPILE_TEST`: a vendor menu. No device under it is enabled in the release
+NET_VENDOR_FARADAY	y	`depends on ARM || COMPILE_TEST`: a vendor menu. No device under it is enabled in the release
+OLD_SIGACTION	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (old 32-bit signal ABIs)
+OLD_SIGSUSPEND3	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (old 32-bit signal ABIs)
+OUTER_CACHE	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the L2 cache controller driver of the 32-bit multi-platform kernel (L2C-210/220/310; the Exynos 5433 does not use it)
+OUTER_CACHE_SYNC	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the L2 cache controller driver of the 32-bit multi-platform kernel (L2C-210/220/310; the Exynos 5433 does not use it)
+PERF_USE_VMALLOC	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose
+PINCTRL_EXYNOS_ARM	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). The ARMv7 pinctrl driver: the same compatibles as PINCTRL_EXYNOS_ARM64 (unchanged =y), which the arm64 kernel uses; building both would make two drivers claim one node
+PL353_SMC	y	`depends on ARM || COMPILE_TEST`, `default y if ARM`: the ARM PL353 static memory controller, which the Exynos 5433 does not have
+S5P_DEV_MFC	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (platform device helper of the 32-bit Samsung machine code, for the MFC video codec)
+SAMSUNG_MC	y	prompt only `if COMPILE_TEST` on arm64: selectable, deliberately not enabled (COMPILE_TEST stays off). It is only the menu that offers EXYNOS_SROM and the 5422 memory controller, neither on this board
+SELECT_MEMORY_MODEL	y	memory model choice: only with ARCH_SELECT_MEMORY_MODEL, which arm64 does not set
+SMP_ON_UP	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+SND_ARM	y	32-bit only: `depends on ARM`: sound devices of 32-bit ARM boards. None on the Exynos 5433
+SOC_EXYNOS3250	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+SOC_EXYNOS4212	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+SOC_EXYNOS4412	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+SOC_EXYNOS5250	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+SOC_EXYNOS5260	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+SOC_EXYNOS5410	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+SOC_EXYNOS5420	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+SOC_EXYNOS5433	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+SOC_EXYNOS5800	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (arch/arm/mach-exynos): selects the SoC's 32-bit machine code. On arm64 the SoC is ARCH_EXYNOS (unchanged =y) and its clock units come from EXYNOS_ARM64_COMMON_CLK (unchanged =y)
+SRAM_EXEC	y	no prompt under arm64: an internal capability flag that only another option can select; the arm64 architecture does not select it. Nothing to choose (execute code from SRAM: 32-bit suspend paths)
+SWP_EMULATE	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: emulation of the SWP/SWPB instructions of older ARM ABIs
+SYS_SUPPORTS_APM_EMULATION	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration (ARMv7 CPU feature)
+UID16	y	16-bit UID system calls: need HAVE_UID16, which arm64 does not set  Kconfig: depends on HAVE_UID16 && MULTIUSER
+UNWINDER_ARM	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 32-bit stack unwinder. arm64 uses frame pointers (FRAME_POINTER, new =y)
+USE_OF	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: boot plumbing of the 32-bit zImage (ATAGS, self-relocation, flat tree switch). The arm64 Image takes the device tree and is relocated by its own head code
+VDSO	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 32-bit vDSO. The arm64 vDSO is built unconditionally
+VFP	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 32-bit FPU and SIMD switches. arm64 has them always; the kernel may use NEON (KERNEL_MODE_NEON, new =y)
+VFPv3	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 32-bit FPU and SIMD switches. arm64 has them always; the kernel may use NEON (KERNEL_MODE_NEON, new =y)
+VMSPLIT_3G	y	32-bit architecture: defined only under arch/arm/, not part of the arm64 configuration: the 3 GiB / 1 GiB split the release chose so that 32-bit Android (Waydroid) gets 3 GiB of user address space. A 64-bit kernel has no such split

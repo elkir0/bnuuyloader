@@ -1,0 +1,46 @@
+// Boot arguments of the first arm64 kernel test with secondary CPUs.
+//
+// A copy of the owner's kernel/test-kernel/bootargs.overlay.dts as it stood on 2026-11-24
+// with ONE change: "nosmp" is replaced by "maxcpus=2".  That file is the reference; if it
+// changes, make the same change here or edit a copy of it.
+//
+// With maxcpus=2 the kernel brings only CPU 1 up (an A53, the boot CPU's cluster: MPIDR 0x101,
+// PMU core 5), which is the first step of t715/docs/SMP-DESIGN.md, section 13:
+//   maxcpus=1   the method prepares the PMU and starts no core
+//   maxcpus=2   CPU 1
+//   maxcpus=4   CPU 1 to 3 (the other A53)
+//   no limit    CPU 4 to 7 too (the A57)
+//
+// Apply it to the dtb that has the enable-method (smp/build-kernel/exynos5433-gts28ltexx-arm64-boot.dtb):
+//   fdtoverlay -i exynos5433-gts28ltexx-arm64-boot.dtb -o gts28ltexx-arm64-maxcpus2.dtb bootargs-smp-test.dtbo
+//
+// Everything else is the owner's: the RAM log console, the clock units left out because they sit
+// in a power domain this small kernel does not drive, no regulator switched off, a watchdog no
+// part of the kernel feeds.
+/dts-v1/;
+/plugin/;
+/ {
+    fragment@0 {
+        target-path = "/chosen";
+        __overlay__ {
+            bootargs = "console=sec_log sec_log=0x200000@0x26000000 loglevel=8 printk.devkmsg=on initcall_debug maxcpus=2 clk_ignore_unused pd_ignore_unused regulator.ignore_unused=1 panic=5 oops=panic s3c2410_wdt.tmr_atboot=1 watchdog.handle_boot_enabled=0";
+        };
+    };
+    fragment@1 {
+        target-path = "/soc@0";
+        __overlay__ {
+            clock-controller@12460000 { status = "disabled"; };   /* G2D */
+            clock-controller@13b90000 { status = "disabled"; };   /* DISP */
+            clock-controller@114c0000 { status = "disabled"; };   /* AUD */
+            clock-controller@14aa0000 { status = "disabled"; };   /* G3D */
+            clock-controller@13cf0000 { status = "disabled"; };   /* GSCL */
+            clock-controller@150d0000 { status = "disabled"; };   /* MSCL */
+            clock-controller@15280000 { status = "disabled"; };   /* MFC */
+            clock-controller@14f80000 { status = "disabled"; };   /* HEVC */
+            clock-controller@146d0000 { status = "disabled"; };   /* ISP */
+            clock-controller@120d0000 { status = "disabled"; };   /* CAM0 */
+            clock-controller@145d0000 { status = "disabled"; };   /* CAM1 */
+            pinctrl@114b0000 { status = "disabled"; };            /* AUD */
+        };
+    };
+};

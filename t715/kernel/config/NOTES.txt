@@ -1,0 +1,89 @@
+NOTES: what failed, and what to know before using this build
+=============================================================
+Workstream "kernel configuration", 2026-11-24.  Nothing here was run on the tablet.
+The full account is t715/docs/KERNEL-CONFIG.md; the configuration is in config-report.md.
+
+
+1. THE FIRST FULL BUILD FAILED: a clone on a case-insensitive disk
+------------------------------------------------------------------
+   make[5]: *** No rule to make target 'net/netfilter/xt_TCPMSS.o', needed by
+            'net/netfilter/built-in.a'.  Stop.
+
+   13 paths of the Linux tree differ from another only by letter case (xt_HL.c and
+   xt_hl.c, xt_CONNMARK.h and xt_connmark.h, ...).  The owner's trees are on a case-
+   sensitive volume; a clone made elsewhere on macOS may not be, so it holds one file of each
+   pair.  The release builds from these files: xt_TCPMSS.c on disk was the TTL match.
+
+   Mounting the committed file over the lost path was not enough: the compiler finds
+   headers by path, make decides whether a source exists from the directory listing,
+   and a mount is never listed.
+
+   Resolved: build-arm64.sh builds through a view of the clone made in the container
+   (links to every entry; the directories concerned are real directories of links with
+   the lost names added).  The 13 lost paths are skip-worktree in the clone, so that
+   they cannot be committed by accident.  Do not edit them through this clone.
+   Any other clone of this tree made on such a volume has the same trap.
+
+
+2. GIT IN THE CONTAINER TOOK MINUTES
+------------------------------------------------------------------
+   git status on the bind-mounted clone re-read all 80 000 files (the index was
+   written on the host, where inode numbers and change times differ): more than
+   3 minutes, each time.  Resolved in the script: core.checkStat=minimal and
+   core.trustctime=false for git in the container (6 seconds), and the configuration
+   is rewritten only when its content changes.
+
+
+3. WHAT UDEV STARTS BY ITSELF ONCE THE MODULES ARE INSTALLED
+------------------------------------------------------------------
+   The kernel scales nothing by itself.  But:
+   - cpufreq-dt.ko: the kernel creates a "cpufreq-dt" platform device for each CPU
+     that has an OPP table (CPUFREQ_DT_PLATDEV=y); udev loads the module at boot and
+     CPU frequency scaling starts, by the board's tables.
+   - panfrost.ko: loaded for gpu@14ac0000; the GPU powers up and scales.
+   - pci-exynos.ko, then brcmfmac: the Wi-Fi bus.
+   - the sound stack (18 modules), the sensors, the cameras, the vibrator, the touch keys.
+   To keep them out of a test boot: modprobe.blacklist=cpufreq_dt,panfrost,... on the
+   kernel command line (the owner's own practice for test kernels).
+   Without cpufreq-dt the cooling maps have nothing to act on: fine at rest only.
+
+
+4. THE DEVICE TREE GIVES THE ARM64 KERNEL NO WAY TO START THE OTHER CORES
+------------------------------------------------------------------
+   No psci node (the board dts deletes it: "the bootloader offers no PSCI to a
+   32-bit kernel"), no enable-method.  Consequence on the good side: with this tree
+   the kernel makes no SMC to the secure monitor at all.  If a later tree adds a
+   psci node (PSCI 0.2 or later), everything that asks the firmware starts doing so
+   (the Spectre-BHB firmware query, the TRNG probe, the SoC id): test it deliberately.
+
+
+5. THE BUILT-IN COMMAND LINE IS ONLY A FALLBACK ON ARM64
+------------------------------------------------------------------
+   The release's CONFIG_CMDLINE ... with CMDLINE_EXTEND appended its arguments on
+   arm32.  arm64 has no CMDLINE_EXTEND: the device tree's bootargs are used as they
+   are, and the built-in string is used only if the tree has none.  Boot
+   gts28ltexx-bootargs.dtb, not the base DTB: the base carries the dts's own
+   arguments (console=tty0 ...: no RAM log console, and the watchdog fed during boot).
+
+
+6. TWO ITEMS OF THE ORIGINAL LIST ARE NOT WHAT THEY SEEM
+------------------------------------------------------------------
+   - EXYNOS_IOMMU is not set in the release configuration; it is not set here either.
+   - EXYNOS_REGULATOR_COUPLER, EXYNOS_ASV_ARM, EXYNOS_PMU_ARM_DRIVERS do nothing on
+     this SoC even on arm32 (they act on other SoCs only).  They are not built here;
+     COMPILE_TEST stays off.  The board's own bias drivers are built in.
+
+
+7. SMALL THINGS
+------------------------------------------------------------------
+   - One warning in the build: fs/binfmt_elf.c:817, a 1040-byte stack frame against
+     FRAME_WARN=1024.  No error, no modpost warning, no section mismatch.
+   - dtc: 3 warnings, all in the board source as the release has it.
+   - The kernel release string carries the commit (6.12.114-00097-g512804d49581):
+     the modules directory has the same name.  Install modules with each kernel.
+   - Firmware files must be uncompressed in the root (FW_LOADER_COMPRESS is off,
+     as in the release).
+   - exynos-trng.ko is never loaded: the board tree has no TRNG node (as in the
+     release); the tablet's hardware generator is not used.
+   - build.log is the log of the Image and modules step only; config.log and
+     modules-install.log are empty when all goes well (make -s).

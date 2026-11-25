@@ -1,0 +1,40 @@
+// What the arm64 test kernel is told at start, and what it is kept away from.
+// The 32-bit port's own options, plus what its bootloader used to pass (the RAM log: its console is
+// named sec_log here), plus: one core only, no regulator switched off for being unused (no driver
+// holds the rails S-Boot left on), the name of every step of the start in the log, every line the
+// test's init writes (the kernel keeps /dev/kmsg to 10 lines in 5 s by default: printk.devkmsg=on
+// lifts that), and a watchdog
+// that no part of the kernel feeds: the test's init holds it without feeding it, so a start that
+// stops anywhere ends in a reset.
+//
+// The clock units that sit in a power domain are left out.  This test kernel has no power domain
+// driver: once the driver core gives up waiting for it, each of them would probe with its domain
+// off, and the first register read aborts on the bus (seen on 2026-11-24: G2D, panic).  With
+// them disabled, their clocks do not exist: nothing of the test needs them.
+/dts-v1/;
+/plugin/;
+/ {
+    fragment@0 {
+        target-path = "/chosen";
+        __overlay__ {
+            bootargs = "console=sec_log sec_log=0x200000@0x26000000 loglevel=8 printk.devkmsg=on initcall_debug nosmp clk_ignore_unused pd_ignore_unused regulator_ignore_unused panic=5 oops=panic s3c2410_wdt.tmr_atboot=1 watchdog.handle_boot_enabled=0";
+        };
+    };
+    fragment@1 {
+        target-path = "/soc@0";
+        __overlay__ {
+            clock-controller@12460000 { status = "disabled"; };   /* G2D */
+            clock-controller@13b90000 { status = "disabled"; };   /* DISP */
+            clock-controller@114c0000 { status = "disabled"; };   /* AUD */
+            clock-controller@14aa0000 { status = "disabled"; };   /* G3D */
+            clock-controller@13cf0000 { status = "disabled"; };   /* GSCL */
+            clock-controller@150d0000 { status = "disabled"; };   /* MSCL */
+            clock-controller@15280000 { status = "disabled"; };   /* MFC */
+            clock-controller@14f80000 { status = "disabled"; };   /* HEVC */
+            clock-controller@146d0000 { status = "disabled"; };   /* ISP */
+            clock-controller@120d0000 { status = "disabled"; };   /* CAM0 */
+            clock-controller@145d0000 { status = "disabled"; };   /* CAM1 */
+            pinctrl@114b0000 { status = "disabled"; };            /* AUD */
+        };
+    };
+};

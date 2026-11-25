@@ -1,0 +1,232 @@
+# SYMBOL	VALUE	REASON
+64BIT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice (the architecture itself)
+AMPERE_ERRATUM_AC03_CPU_38	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARCH_BINFMT_ELF_EXTRA_PHDRS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_BINFMT_ELF_STATE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_CORRECT_STACKTRACE_ON_KRETPROBE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_DEFAULT_KEXEC_IMAGE_VERIFY_SIG	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_ENABLE_MEMORY_HOTPLUG	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_ENABLE_MEMORY_HOTREMOVE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_ENABLE_SPLIT_PMD_PTLOCK	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_CACHE_LINE_SIZE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_DEBUG_VM_PGTABLE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_DEBUG_WX	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_DMA_PREP_COHERENT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_FAST_MULTIPLIER	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_GIGANTIC_PAGE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_HW_PTE_YOUNG	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_KERNEL_FPU_SUPPORT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_MEM_ENCRYPT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_NMI_SAFE_THIS_CPU_OPS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_PKEYS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_PTDUMP	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_PTE_DEVMAP	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_RELR	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_SET_DIRECT_MAP	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_SUBPAGE_FAULTS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAS_SYSCALL_WRAPPER	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAVE_ELF_PROT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_HAVE_TRACE_MMIO_ACCESS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_MHP_MEMMAP_ON_MEMORY_ENABLE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_PROC_KCORE_TEXT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_DEBUG_PAGEALLOC	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_INT128	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_KEXEC_FILE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_KEXEC_IMAGE_VERIFY_SIG	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_KEXEC_SIG	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_LTO_CLANG	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_LTO_CLANG_THIN	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_MEMORY_FAILURE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_NUMA_BALANCING	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_PAGE_TABLE_CHECK	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_RT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_SUPPORTS_SHADOW_CALL_STACK	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_USES_HIGH_VMA_FLAGS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_USES_PG_ARCH_2	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_USES_PG_ARCH_3	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_USE_GNU_PROPERTY	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_USE_QUEUED_RWLOCKS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_USE_QUEUED_SPINLOCKS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_USE_SYM_ANNOTATIONS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_WANTS_EXECMEM_LATE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_WANTS_NO_INSTR	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_WANTS_THP_SWAP	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_WANT_BATCHED_UNMAP_TLB_FLUSH	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_WANT_DEFAULT_BPF_JIT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_WANT_FRAME_POINTERS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARCH_WANT_HUGE_PMD_SHARE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARM64	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice (the architecture itself)
+ARM64_4K_PAGES	y	default: 4 KiB pages (kept, the owner's decision)
+ARM64_AMU_EXTN	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_AS_HAS_MTE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARM64_BTI	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_CNP	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_E0PD	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_EPAN	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_ERRATUM_1024718	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_1165522	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_1319367	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core (Cortex-A57/A72: this SoC's A57)
+ARM64_ERRATUM_1463225	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_1508412	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_1530923	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_2051678	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_2054223	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_2067961	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_2077057	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_2457168	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_2645198	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_2658417	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_2966298	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_3117295	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_3194386	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_3821522	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_4118414	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+ARM64_ERRATUM_819472	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core (Cortex-A53: this SoC's A53)
+ARM64_ERRATUM_824069	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core (Cortex-A53: this SoC's A53)
+ARM64_ERRATUM_826319	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core (Cortex-A53: this SoC's A53)
+ARM64_ERRATUM_827319	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core (Cortex-A53: this SoC's A53)
+ARM64_ERRATUM_832075	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core (Cortex-A57: this SoC's A57)
+ARM64_ERRATUM_843419	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core (Cortex-A53: this SoC's A53)
+ARM64_ERRATUM_858921	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core: the workaround runs when the architected timer is registered
+ARM64_HW_AFDBM	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_LD_HAS_FIX_ERRATUM_843419	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARM64_LPA2	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it: 52-bit physical addresses (ARMv8.2-LPA). Follows ARM64_PA_BITS_52, so it is not selected once the virtual address space is 39 bits (our change)
+ARM64_LSE_ATOMICS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARM64_MTE	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_PAN	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_PA_BITS_52	y	arm64 default that our change removes as a consequence of ARM64_VA_BITS_39: with 4 KiB pages the 52-bit choice exists only when the virtual address space is 52 bits
+ARM64_PLATFORM_DEVICES	y	default y: a menu (drivers of arm64 platforms)
+ARM64_POE	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_PTR_AUTH	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_PTR_AUTH_KERNEL	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_RAS_EXTN	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_SVE	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_TAGGED_ADDR_ABI	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it. The tagged address syscall ABI: every ARMv8 CPU ignores the top byte of a user address, so this one does take effect: user space may pass pointers with a non-zero top byte
+ARM64_TLB_RANGE	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_USE_LSE_ATOMICS	y	CPU extension, default y: detected per CPU at run time; the Cortex-A57 and A53 of the Exynos 5433 are ARMv8.0 and do not implement it
+ARM64_VA_BITS_52	y	arm64 default that our change replaces: 39 bits are enough (the owner's decision). Consequences: ARM64_PA_BITS_48, no ARM64_LPA2, 3 page-table levels instead of 5
+ARM64_WORKAROUND_BROKEN_AMU_CONSTCNT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARM64_WORKAROUND_CLEAN_CACHE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARM64_WORKAROUND_REPEAT_TLBI	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARM64_WORKAROUND_SPECULATIVE_AT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARM64_WORKAROUND_SPECULATIVE_UNPRIV_LOAD	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARM64_WORKAROUND_TSB_FLUSH_FAILURE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ARM_ARCH_TIMER_OOL_WORKAROUND	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: erratum workarounds of the architected timer driver for other vendors' SoCs
+ARM_GIC_V2M	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: GICv3 / GICv3-ITS / GICv2m interrupt controller drivers, built by default. They probe only on a matching device tree node; the Exynos 5433 has a GIC-400 (v2)
+ARM_GIC_V3	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: GICv3 / GICv3-ITS / GICv2m interrupt controller drivers, built by default. They probe only on a matching device tree node; the Exynos 5433 has a GIC-400 (v2)
+ARM_GIC_V3_ITS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: GICv3 / GICv3-ITS / GICv2m interrupt controller drivers, built by default. They probe only on a matching device tree node; the Exynos 5433 has a GIC-400 (v2)
+ARM_PSCI_FW	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: PSCI firmware support. None of it runs with the board's device tree: it has no psci node (the board dts deletes it: the bootloader offers no PSCI) and no enable-method
+ARM_SMCCC_SOC_ID	y	new driver, built in by default: the SoC bus entry from ARM_SMCCC_SOC_ID. It returns at once while the firmware is known to report less than SMCCC 1.2, and on this board that is never asked (no SMCCC conduit: no psci node in the device tree)
+AS_HAS_ARMV8_2	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+AS_HAS_ARMV8_3	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+AS_HAS_ARMV8_4	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+AS_HAS_ARMV8_5	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+AS_HAS_CFI_NEGATE_RA_STATE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+AS_HAS_LDAPR	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+AS_HAS_LSE_ATOMICS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+AS_HAS_SHA3	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+AUDIT_ARCH_COMPAT_GENERIC	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+BUILTIN_RETURN_ADDRESS_STRIPS_PAC	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+CAVIUM_ERRATUM_22375	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+CAVIUM_ERRATUM_23154	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+CAVIUM_ERRATUM_27456	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+CAVIUM_ERRATUM_30115	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+CAVIUM_TX2_ERRATUM_219	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+CC_CAN_LINK	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+CC_CAN_LINK_STATIC	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+CC_HAS_BRANCH_PROT_PAC_RET	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+CC_HAS_BRANCH_PROT_PAC_RET_BTI	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+CC_HAS_INT128	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+CC_HAS_KASAN_SW_TAGS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+CC_HAS_SIGN_RETURN_ADDRESS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+CC_HAVE_SHADOW_CALL_STACK	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+CC_HAVE_STACKPROTECTOR_SYSREG	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+CMDLINE_FROM_BOOTLOADER	y	default of the arm64 command-line choice, the counterpart of the release's CMDLINE_EXTEND (gone): the arguments of the device tree's bootargs are used as they are, and the built-in CMDLINE string is used only when the device tree carries none
+DMA_BOUNCE_UNALIGNED_KMALLOC	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+DMA_COHERENT_POOL	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+DMA_DIRECT_REMAP	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+FRAME_POINTER	y	default y on arm64 (the unwinder uses them): frame pointers in the kernel
+FSL_ERRATUM_A008585	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core: the workaround runs when the architected timer is registered
+FUJITSU_ERRATUM_010001	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+FUNCTION_ALIGNMENT_4B	y	default: functions are aligned to 4 bytes
+GCC_SUPPORTS_DYNAMIC_FTRACE_WITH_ARGS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+GENERIC_BUG_RELATIVE_POINTERS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+GENERIC_CSUM	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+GENERIC_IOREMAP	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+GENERIC_IRQ_KEXEC_CLEAR_VM_FORWARD	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+GENERIC_VDSO_TIME_NS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ALIGNED_STRUCT_PAGE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ARCH_COMPILER_H	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ARCH_HUGE_VMALLOC	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ARCH_HUGE_VMAP	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ARCH_JUMP_LABEL_RELATIVE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ARCH_KASAN_HW_TAGS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ARCH_KASAN_SW_TAGS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ARCH_PREL32_RELOCATIONS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ARCH_RANDOMIZE_KSTACK_OFFSET	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ARM_SMCCC_DISCOVERY	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_ASM_MODVERSIONS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_CMPXCHG_DOUBLE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_CMPXCHG_LOCAL	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_DYNAMIC_FTRACE_WITH_ARGS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_FUNCTION_ARG_ACCESS_API	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_FUNCTION_GRAPH_FREGS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_IOREMAP_PROT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_MOVE_PMD	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_MOVE_PUD	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_POSIX_CPU_TIMERS_TASK_WORK	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_PREEMPT_DYNAMIC	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_PREEMPT_DYNAMIC_KEY	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_RUST	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_SAMPLE_FTRACE_DIRECT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HAVE_SAMPLE_FTRACE_DIRECT_MULTI	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+HISILICON_ERRATUM_161010101	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core: the workaround runs when the architected timer is registered
+HISILICON_ERRATUM_161600802	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+HISILICON_ERRATUM_162100801	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+HW_RANDOM_ARM_SMCCC_TRNG	m	new driver, module by default (follows HW_RANDOM=m): a random number source behind the ARM SMCCC TRNG interface, i.e. a call into the secure monitor. udev would load it through its alias (platform:smccc_trng), but that device is registered by the built-in SMCCC discovery (drivers/firmware/smccc/smccc.c) only once it has found the interface in the firmware, and on this board the discovery never runs: PSCI is what starts it (drivers/firmware/psci), and the board's device tree has no psci node. So the module is never loaded and the firmware is never asked. The board's own generator is HW_RANDOM_EXYNOS (=m, unchanged)
+IOMMU_API	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: DMA mapping through an IOMMU, selected by arm64. No IOMMU driver is built (EXYNOS_IOMMU is not set in the release and stays so)
+IOMMU_DEFAULT_DMA_STRICT	y	default: strict DMA for IOMMUs
+IOMMU_DMA	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: DMA mapping through an IOMMU, selected by arm64. No IOMMU driver is built (EXYNOS_IOMMU is not set in the release and stays so)
+IOMMU_IOVA	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: DMA mapping through an IOMMU, selected by arm64. No IOMMU driver is built (EXYNOS_IOMMU is not set in the release and stays so)
+IRQ_MSI_IOMMU	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: DMA mapping through an IOMMU, selected by arm64. No IOMMU driver is built (EXYNOS_IOMMU is not set in the release and stays so)
+IRQ_MSI_LIB	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: DMA mapping through an IOMMU, selected by arm64. No IOMMU driver is built (EXYNOS_IOMMU is not set in the release and stays so)
+KERNEL_MODE_NEON	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: the kernel may use the NEON registers (crypto, hashing). The release had it off, the arm32 default
+LRU_GEN_WALKS_MMU	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+MITIGATE_SPECTRE_BRANCH_HISTORY	y	default y: the arm64 counterpart of the release's HARDEN_BRANCH_HISTORY. The firmware part of the workaround needs an SMCCC conduit, which only PSCI establishes and the board's device tree has no psci node to do so
+MODULES_USE_ELF_RELA	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+NEED_SG_DMA_FLAGS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+NEED_SG_DMA_LENGTH	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+NVIDIA_CARMEL_CNP_ERRATUM	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+OF_IOMMU	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: DMA mapping through an IOMMU, selected by arm64. No IOMMU driver is built (EXYNOS_IOMMU is not set in the release and stays so)
+PARTITION_PERCPU	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+POSIX_CPU_TIMERS_TASK_WORK	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+PTP_1588_CLOCK_KVM	y	new driver, built in by default: a PTP clock for KVM guests. It only tests a cached bitmap that is filled under a hypervisor (HVC conduit), so it does nothing here and makes no firmware call
+QCOM_FALKOR_ERRATUM_1003	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+QCOM_FALKOR_ERRATUM_1009	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+QCOM_FALKOR_ERRATUM_E1041	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+QCOM_QDF2400_ERRATUM_0065	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+QUEUED_RWLOCKS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+QUEUED_SPINLOCKS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+RANDOMIZE_KSTACK_OFFSET	y	default y: a random offset in the kernel stack at each system call
+RELOCATABLE	y	default y: the Image applies its own relocations, so it starts wherever it is loaded. Needed by the loader, which copies the Image into a slot
+RELR	y	default y: relocations packed in the RELR format (the toolchain supports it)
+ROCKCHIP_ERRATUM_3588001	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+RODATA_FULL_DEFAULT_ENABLED	y	default y: the kernel's read-only data is also read-only through the direct mapping. The release had STRICT_KERNEL_RWX on arm32
+RUSTC_SUPPORTS_ARM64	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+SECRETMEM	y	default y: memfd_secret()
+SOCIONEXT_SYNQUACER_PREITS	y	erratum workaround, default y: matched against the CPU at run time, so it acts only on the listed core
+SPARSEMEM	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: the sparse memory model and its virtual memmap (arm64 has no flat memory model)
+SPARSEMEM_EXTREME	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: the sparse memory model and its virtual memmap (arm64 has no flat memory model)
+SPARSEMEM_VMEMMAP	y	default y: the memmap of the sparse memory model in a virtual mapping
+SPARSEMEM_VMEMMAP_ENABLE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: the sparse memory model and its virtual memmap (arm64 has no flat memory model)
+SPLIT_PMD_PTLOCKS	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+SURFACE_PLATFORMS	y	default y: a menu (drivers of Microsoft Surface devices); empty here
+SYSCTL_EXCEPTION_TRACE	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+TIME_NS	y	default y: CLONE_NEWTIME
+TOOLS_SUPPORT_RELR	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice: the toolchain packs relocations in the RELR format
+TRACE_IRQFLAGS_NMI_SUPPORT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+UNMAP_KERNEL_AT_EL0	y	default y: the kernel is unmapped from the user page tables on CPUs affected by Meltdown; decided per CPU at run time
+USER_STACKTRACE_SUPPORT	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+VDSO_GETRANDOM	y	no prompt: a capability flag that the arm64 architecture, or its toolchain check, selects. Not a choice
+ZONE_DMA	y	default y on arm64: ZONE_DMA covers the memory below 4 GiB, ZONE_DMA32 is empty
+ZONE_DMA32	y	default y on arm64: ZONE_DMA covers the memory below 4 GiB, ZONE_DMA32 is empty

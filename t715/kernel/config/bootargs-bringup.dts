@@ -1,0 +1,11 @@
+/dts-v1/;
+/plugin/;
+/* the bringup boot arguments of the arm64 system (docs/ROOTFS-AARCH64.md) */
+/ {
+    fragment@0 {
+        target-path = "/chosen";
+        __overlay__ {
+            bootargs = "console=sec_log sec_log=0x200000@0x26000000 console=tty0 loglevel=7 printk.devkmsg=on clk_ignore_unused pd_ignore_unused panic=10 s3c2410_wdt.tmr_atboot=1 watchdog.handle_boot_enabled=1 watchdog.open_timeout=600 t715.persist=omarchy-arm64 t715.kbootmark=0 t715.return=20 t715.usbshell=1";
+        };
+    };
+};
