@@ -21,8 +21,9 @@ How sure each fact is:
 Paths such as `drivers/regulator/core.c` are files of the kernel tree of omarchy-tab-s2 (v6.12.114
 plus its patch series). Lines of the loader are under `../loader/`. Some paths quoted from the studies name files of
 the fork that are not in this tree (`../kernel/test-kernel/`, `../kernel/smp/`,
-`../kernel/config/`, `../rootfs/`, and the logs under `../loader/out/`): they are in
-[elkir0/bnuuyloader](https://github.com/elkir0/bnuuyloader).
+`../kernel/config/`, and the logs under `../loader/out/`): they are in
+[elkir0/bnuuyloader](https://github.com/elkir0/bnuuyloader). `../rootfs/` is the arm64 image's
+build, in [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2) under `arm64/rootfs/`.
 ## 1. The device and its S-Boot
 
 The SM-T715 has an Exynos 5433: four Cortex-A53 and four Cortex-A57. The one unit tested runs
