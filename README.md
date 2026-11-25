@@ -114,7 +114,7 @@ order, with a way back at every step: [`t715/docs/GO-ARM64.md`](t715/docs/GO-ARM
 | `build.py`, `compiler_util.py`, `payload_layout.py`, `sboot_util.py`, `requirements.txt`, `src/`, `assets/`, `bnuuy.gif` | the Note 4 loader | upstream |
 | `t715/README.md` | the Tab S2 loader: how it works, how to work with it | this fork |
 | `t715/loader/` | the loader's sources: `scripts/`, `stage2/`, `el1/`, `art/` (the owner's boot screen and its preview), and the ring reader `tools/seclog_dump/` | this fork |
-| `t715/rescue/` | the rescue: a patch to omarchy-tab-s2's `boot/`, with its instructions | this fork |
+| `t715/rescue/` | the rescue: in omarchy-tab-s2's `main` since 2026-11-25; here as a patch for a clone at 1.0.5, with its instructions | this fork |
 | `t715/kernel/` | `patches/`: the nine kernel patches; `README.md`; `test-kernel/`: the first test kernel; `smp/`: the eight-core method as a patch series; `config/`: the daily kernel's configuration and build notes | this fork |
 | `t715/docs/` | `GO-ARM64.md`, `SPLASH.md`, `RESCUE.md`, `FINDINGS.md`, `PRODUCTION-LOADER.md`, `SMP-DESIGN.md`, `SMP-EXPERIMENT.md`, `SMP-MONITOR.md`, `CPUFREQ-THERMAL.md`, `KERNEL-CONFIG.md`, `ROOTFS-AARCH64.md`, `ROADMAP.md` | this fork |
 | `t715/rootfs/`, `t715/tools/`, `t715/tests/`, `t715/build-arm64.sh` | the aarch64 Omarchy root image, the installer and the health check, their tests, the kernel build | this fork |

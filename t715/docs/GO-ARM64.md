@@ -6,7 +6,7 @@ signed bootloader only starts in 32 bits. Two repositories let it run a 64-bit s
 | Brick | Where | What it holds |
 |---|---|---|
 | **The boot** | this fork, [elkir0/bnuuyloader](https://github.com/elkir0/bnuuyloader) | the loader that makes the tablet start an arm64 kernel at every boot, with the boot screen; the kernel patches; the rescue; the tools |
-| **The system** | [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2) and `rootfs/` here | Omarchy for the tablet: its 32-bit release today; the recipes of the arm64 image (`rootfs/`, [ROOTFS-AARCH64.md](ROOTFS-AARCH64.md)) |
+| **The system** | [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2) (its page on the 64-bit port: [docs/ARM64.md](https://github.com/elkir0/omarchy-tab-s2/blob/main/docs/ARM64.md)) and `rootfs/` here | Omarchy for the tablet: its 32-bit release today; the recipes of the arm64 image (`rootfs/`, [ROOTFS-AARCH64.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROOTFS-AARCH64.md)) |
 
 There are two ways to use them, and this page is the door to both.
 
@@ -14,6 +14,10 @@ There are two ways to use them, and this page is the door to both.
   the owner's goal. **On 2026-11-25 it is not open yet**: section 1 says exactly where it stands.
 - **Route 2, the long one.** For whoever wants to do it today, and understand. Section 2 is the
   map; each step links to the page that tells it.
+
+Three pages this one points to, and what builds the image (`t715/rootfs/`,
+`t715/kernel/config/`, `t715/build-arm64.sh`), are in the fork's `main` only: their links go
+there.
 
 All of it was made and tried on **one tablet**: bootloader `T715XXU2CRH1`, hardware revision 9.
 Since 2026-11-25 that tablet boots Omarchy 4.5 on arm64 by itself at every power-on, with the
@@ -64,18 +68,19 @@ from that tablet's own PARAM there, and write it. That installer is the main pie
 |---|---|
 | The loader, with the boot screen | **done**, on the owner's tablet at every boot since that day ([SPLASH.md](SPLASH.md)) |
 | The rescue in BOOT and RECOVERY | **done**, on the owner's tablet; tried ([RESCUE.md](RESCUE.md)) |
-| The arm64 kernel and its patches | **done**: Linux 6.12.114, eight cores ([KERNEL-CONFIG.md](KERNEL-CONFIG.md)) |
+| The arm64 kernel and its patches | **done**: Linux 6.12.114, eight cores ([KERNEL-CONFIG.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/KERNEL-CONFIG.md)) |
 | The arm64 Omarchy image | **built from the sources** on the owner's computer; Omarchy 4.5 is the owner's daily system. **Not released** as a file to download |
 | The installer image, for BOOT and RECOVERY | **not written**: it would do on the tablet what section 2 has you do from a computer |
 | A forge of the loader on the tablet | **not written**: the loader is built on a computer today |
 | Another tablet, another firmware | **not tried** |
 
-This is Milestone 5 of [ROADMAP.md](ROADMAP.md). Until it is done, route 1 is closed.
+This is Milestone 5 of [ROADMAP.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROADMAP.md). Until it is done, route 1 is closed.
 
 ### 1.4 What you can do today with no tooling
 
-Install the 32-bit Omarchy: it is the turnkey release of omarchy-tab-s2 (1.0.5), and its guide
-takes a stock tablet there with Odin or Heimdall. Nothing of it has to be undone to take route 2
+Install the 32-bit Omarchy: it is the turnkey release of omarchy-tab-s2 (1.0.5), and
+[its guide](https://github.com/elkir0/omarchy-tab-s2/blob/main/docs/INSTALL.md) takes a stock
+tablet there with Odin or Heimdall. Nothing of it has to be undone to take route 2
 afterwards: route 2 starts from it.
 
 ## 2. Route 2: the long one, for power users
@@ -92,12 +97,12 @@ The order below keeps a way back at every step. Do not skip ahead to the loader.
 
 | # | Step | Told in |
 |---|---|---|
-| 1 | Install the 32-bit Omarchy 1.0.5; reach the tablet over the USB link | omarchy-tab-s2: `docs/INSTALL.md` |
+| 1 | Install the 32-bit Omarchy 1.0.5; reach the tablet over the USB link | omarchy-tab-s2: [its install guide](https://github.com/elkir0/omarchy-tab-s2/blob/main/docs/INSTALL.md) |
 | 2 | Read the two dumps of **your** tablet; keep the PARAM copy safe | [../README.md](../README.md), section 3 |
 | 3 | Build the loader's tools; calibrate; build the loader | [../README.md](../README.md), section 4; [SPLASH.md](SPLASH.md), section 9 |
-| 4 | Build the arm64 kernel and the Omarchy image | [KERNEL-CONFIG.md](KERNEL-CONFIG.md); [ROOTFS-AARCH64.md](ROOTFS-AARCH64.md) |
+| 4 | Build the arm64 kernel and the Omarchy image | [KERNEL-CONFIG.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/KERNEL-CONFIG.md); [ROOTFS-AARCH64.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROOTFS-AARCH64.md) |
 | 5 | CACHE: back it up, shrink it, write a kernel to a slot | [../README.md](../README.md), section 6 |
-| 6 | USERDATA: the arm64 root image and its modules | [ROOTFS-AARCH64.md](ROOTFS-AARCH64.md), section 9 |
+| 6 | USERDATA: the arm64 root image and its modules | [ROOTFS-AARCH64.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROOTFS-AARCH64.md), section 9 |
 | 7 | The loader into PARAM: the tablet boots arm64 | [../README.md](../README.md), section 6 |
 | 8 | The rescue into BOOT, then RECOVERY | [RESCUE.md](RESCUE.md), sections 4 and 5 |
 | 9 | Only now, if room is wanted: the 32-bit root may go | [RESCUE.md](RESCUE.md) |
@@ -137,7 +142,7 @@ log in to the arm64 system. **Mind the kernel's boot arguments.** They live in i
 Those of daily use (`t715/kernel/config/bootargs-daily.dts`) name the root
 `USERDATA/omarchy-arm64`. The others are for tests: they make the kernel go back to BOOT after a
 while, skip the mark, and open a root shell over the USB cable, and the build applies one of
-them by default. Read "The build" in [KERNEL-CONFIG.md](KERNEL-CONFIG.md), section 4, and
+them by default. Read "The build" in [KERNEL-CONFIG.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/KERNEL-CONFIG.md), section 4, and
 [../kernel/README.md](../kernel/README.md), before the first boot.
 
 **5 and 6, then 7.** The installer does the writing, from the computer, with the tablet up under
@@ -162,10 +167,10 @@ $T status
 `Image`, `DTB` and `modules.tar.xz` are what `build-arm64.sh` wrote (its `kernel-out/`).
 
 Before the first arm64 boot, read the check list "Before the first boot on the tablet" in
-[ROOTFS-AARCH64.md](ROOTFS-AARCH64.md), section 9.
+[ROOTFS-AARCH64.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROOTFS-AARCH64.md), section 9.
 
-**8. The rescue.** Built from the 32-bit port with the loader you installed, written to BOOT
-while the loader works, then to RECOVERY. From this point a loader that fails to fire costs one
+**8. The rescue.** It is in omarchy-tab-s2's tree since 2026-11-25. Built from it with the
+loader you installed, written to BOOT while the loader works, then to RECOVERY. From this point a loader that fails to fire costs one
 restart, not the tablet ([RESCUE.md](RESCUE.md)). The rescue replaces the 32-bit system's own
 boot image in BOOT and RECOVERY: keep the release's `boot.img` and `recovery.img` at hand, to put
 them back if ever wanted.
@@ -180,10 +185,10 @@ installer's `unloader` refuses to put the stock PARAM back while it is gone, unl
 about 13 s, a soak of three hours with eight busy cores; the boot screen of your choice; display,
 touch, GPU, Wi-Fi, Bluetooth, sound, sensors, battery, the microSD card and the LTE modem's
 processor as far as the health check sees. The details: [../README.md](../README.md), section 1,
-and [ROADMAP.md](ROADMAP.md).
+and [ROADMAP.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROADMAP.md).
 
 **What does not yet**: suspend to RAM, the A57 cores above 1.2 GHz, Android apps, hot-unplug
-([ROADMAP.md](ROADMAP.md), Milestone 4); the modem with a SIM; the camera's user space. One red
+([ROADMAP.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROADMAP.md), Milestone 4); the modem with a SIM; the camera's user space. One red
 pixel on the boot screen, below the picture ([SPLASH.md](SPLASH.md), section 6). And everything
 is one tablet's: another unit, another firmware, and the whole method has to be made again.
 

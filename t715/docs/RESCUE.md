@@ -93,10 +93,11 @@ S-Boot's own data. So the rescue compares, and writes, only those first bytes (`
 
 ## 4. Building it
 
-The rescue is a patch to omarchy-tab-s2's `boot/`, in [../rescue/](../rescue/) with its
-instructions. In short: a clone of omarchy-tab-s2 at 1.0.5 with the patch applied, its 32-bit
-kernel built (its developer guide is `docs/DEPLOY.md`, and `kernel/README.md`), and from the
-loader's `dumps/` the stock PARAM and the loader images.
+The rescue is in omarchy-tab-s2's tree since 2026-11-25, after its 1.0.5 release: a clone of
+its `main` has it. For a clone at `v1.0.5`, the same change is a patch in [../rescue/](../rescue/),
+with its instructions. In short: omarchy-tab-s2 with the rescue, its 32-bit kernel built (its
+developer guide is `docs/DEPLOY.md`, and `kernel/README.md`), and from the loader's `dumps/` the
+stock PARAM and the loader images.
 
 ```bash
 LOADER=/path/to/kboot7.param                   # the loader the rescue writes back

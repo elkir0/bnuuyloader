@@ -6,6 +6,9 @@ knob on, a boot of that initramfs looks at PARAM before anything else, and when 
 finds there is not one known to work, writes the one that is. It is what makes BOOT and RECOVERY
 a way back for a tablet whose only system is started by a loader in PARAM.
 
+The same change is in omarchy-tab-s2's `main` since 2026-11-25. The patch is for a clone of the
+1.0.5 release.
+
 What it does, what the tablet taught, how the images are built and installed, and the rules:
 [../docs/RESCUE.md](../docs/RESCUE.md).
 
@@ -41,4 +44,4 @@ bash boot/tests/test_initramfs.sh
 It builds its own images in Docker and never touches a tablet. Run it on its own: while it runs,
 no file of `boot/` may be edited, bash reads the script as it goes.
 
-Until the patch is in omarchy-tab-s2's own tree, apply it again after each update of that clone.
+On omarchy-tab-s2's `main`, the knob is already there: nothing to apply.
