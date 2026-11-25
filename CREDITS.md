@@ -9,9 +9,11 @@
 | **elkir0** | The port to the Galaxy Tab S2 8.0 LTE (SM-T715), the picture of its boot screen (`t715/loader/art/`), and the tablet's 32-bit Linux port that it builds on. | https://github.com/elkir0/omarchy-tab-s2, GPL-2.0-or-later |
 | **The Linux kernel developers** | The kernel code that the patches of `t715/kernel/` are made of. | Their SPDX headers: GPL-2.0-only |
 
-In the fork, `t715/rootfs/` also carries build recipes and patches for
+The arm64 Omarchy image, built from [Omarchy](https://github.com/basecamp/omarchy) and
 [omarchy-mobile](https://github.com/derekross/omarchy-mobile) (MIT and GPL-3.0-or-later parts,
-Copyright (c) 2026 Derek Ross) and for Hyprgraphics (BSD-3-Clause), as their headers say.
+Copyright (c) 2026 Derek Ross), with patches for Hyprgraphics (BSD-3-Clause), is in
+[omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2) under `arm64/` since 2026-11-25; the
+fork's release 0.9.0 carried a first copy of it in `t715/rootfs/`.
 
 The port is not affiliated with bnuuy, with Samsung, or with Omarchy.
 
@@ -60,7 +62,7 @@ repository are under four licences; a file's SPDX line wins.
 | `t715/rescue/`: the patch to omarchy-tab-s2's `boot/`, and its page | GPL-2.0-or-later, as omarchy-tab-s2, the tree it is made for |
 | `t715/kernel/patches/` and the kernel files under `t715/kernel/` | GPL-2.0-only, as the kernel: the SPDX headers of the files they change |
 | `t715/loader/tools/seclog_dump/seclog_dump.c` | GPL-2.0 |
-| Everything else under `t715/` in the fork: `t715/kernel/` build scripts and configuration, `t715/rootfs/`, `t715/tools/t715-arm64-health`, `t715/tests/`, `t715/build-arm64.sh`, and the other documents of `t715/docs/` | GPL-2.0-or-later, as omarchy-tab-s2, unless a file says otherwise |
+| Everything else under `t715/` in the fork: `t715/kernel/` build scripts and configuration, `t715/build-arm64.sh`, and the other documents of `t715/docs/` | GPL-2.0-or-later, as omarchy-tab-s2, unless a file says otherwise |
 
 No Samsung firmware, blob or dump is in this repository.
 

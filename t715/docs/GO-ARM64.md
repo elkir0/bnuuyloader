@@ -6,7 +6,7 @@ signed bootloader only starts in 32 bits. Two repositories let it run a 64-bit s
 | Brick | Where | What it holds |
 |---|---|---|
 | **The boot** | `t715/` here, kept in [elkir0/bnuuyloader](https://github.com/elkir0/bnuuyloader) | the loader that makes the tablet start an arm64 kernel at every boot, with the boot screen; the kernel patches; the rescue; the tools |
-| **The system** | [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2) (its page on the 64-bit port: [docs/ARM64.md](https://github.com/elkir0/omarchy-tab-s2/blob/main/docs/ARM64.md)) and `rootfs/` here | Omarchy for the tablet: its 32-bit release today; the recipes of the arm64 image (`rootfs/`, [ROOTFS-AARCH64.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROOTFS-AARCH64.md)) |
+| **The system** | [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2) (its page on the 64-bit port: [docs/ARM64.md](https://github.com/elkir0/omarchy-tab-s2/blob/main/docs/ARM64.md)) | Omarchy for the tablet: its 32-bit release today; the arm64 image, its build, its packages and its tools ([arm64/](https://github.com/elkir0/omarchy-tab-s2/tree/main/arm64), [ROOTFS.md](https://github.com/elkir0/omarchy-tab-s2/blob/main/arm64/docs/ROOTFS.md)) |
 
 There are two ways to use them, and this page is the door to both.
 
@@ -15,9 +15,9 @@ There are two ways to use them, and this page is the door to both.
 - **Route 2, the long one.** For whoever wants to do it today, and understand. Section 2 is the
   map; each step links to the page that tells it.
 
-Three pages this one points to, and what builds the image (`t715/rootfs/`,
-`t715/kernel/config/`, `t715/build-arm64.sh`), are in the fork's `main` only: their links go
-there.
+Two pages this one points to, and what builds the kernel (`t715/kernel/config/`,
+`t715/build-arm64.sh`), are in the fork's `main` only: their links go there. The image is built
+in omarchy-tab-s2, under `arm64/`.
 
 All of it was made and tried on **one tablet**: bootloader `T715XXU2CRH1`, hardware revision 9.
 Since 2026-11-25 that tablet boots Omarchy 4.5 on arm64 by itself at every power-on, with the
@@ -100,9 +100,9 @@ The order below keeps a way back at every step. Do not skip ahead to the loader.
 | 1 | Install the 32-bit Omarchy 1.0.5; reach the tablet over the USB link | omarchy-tab-s2: [its install guide](https://github.com/elkir0/omarchy-tab-s2/blob/main/docs/INSTALL.md) |
 | 2 | Read the two dumps of **your** tablet; keep the PARAM copy safe | [../README.md](../README.md), section 3 |
 | 3 | Build the loader's tools; calibrate; build the loader | [../README.md](../README.md), section 4; [SPLASH.md](SPLASH.md), section 9 |
-| 4 | Build the arm64 kernel and the Omarchy image | [KERNEL-CONFIG.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/KERNEL-CONFIG.md); [ROOTFS-AARCH64.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROOTFS-AARCH64.md) |
+| 4 | Build the arm64 kernel and the Omarchy image | [KERNEL-CONFIG.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/KERNEL-CONFIG.md); omarchy-tab-s2's [arm64/README.md](https://github.com/elkir0/omarchy-tab-s2/blob/main/arm64/README.md), "Building the image" |
 | 5 | CACHE: back it up, shrink it, write a kernel to a slot | [../README.md](../README.md), section 6 |
-| 6 | USERDATA: the arm64 root image and its modules | [ROOTFS-AARCH64.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROOTFS-AARCH64.md), section 9 |
+| 6 | USERDATA: the arm64 root image and its modules | omarchy-tab-s2's [ROOTFS.md](https://github.com/elkir0/omarchy-tab-s2/blob/main/arm64/docs/ROOTFS.md), section 9 |
 | 7 | The loader into PARAM: the tablet boots arm64 | [../README.md](../README.md), section 6 |
 | 8 | The rescue into BOOT, then RECOVERY | [RESCUE.md](RESCUE.md), sections 4 and 5 |
 | 9 | Only now, if room is wanted: the 32-bit root may go | [RESCUE.md](RESCUE.md) |
@@ -137,7 +137,7 @@ Without it, the black logo: `--prod --name kboot6`. Or with your own picture
 ([SPLASH.md](SPLASH.md), section 9).
 
 **4. The kernel and the image.** `t715/build-arm64.sh` builds the kernel in a container; the
-image with `bash build.sh` in `t715/rootfs/`. Build the image with your ssh key, or nobody can
+image with `bash build.sh` in omarchy-tab-s2's `arm64/rootfs/` ([its README](https://github.com/elkir0/omarchy-tab-s2/blob/main/arm64/README.md)). Build the image with your ssh key, or nobody can
 log in to the arm64 system. **Mind the kernel's boot arguments.** They live in its device tree.
 Those of daily use (`t715/kernel/config/bootargs-daily.dts`) name the root
 `USERDATA/omarchy-arm64`. The others are for tests: they make the kernel go back to BOOT after a
@@ -158,7 +158,7 @@ T=../tools/t715-arm64-install
 venv/bin/python -I scripts/slot.py backup CACHE-before.bin   # the whole partition, the way back for it
 venv/bin/python -I scripts/slot.py shrink
 $T kernel Image DTB                                         # the kernel, and its device tree with the daily boot arguments
-$T rootfs omarchy-arm64 ../rootfs/out/rootfs-aarch64-omarchy45.img   # the root: USERDATA/omarchy-arm64
+$T rootfs omarchy-arm64 ../../../omarchy-tab-s2/arm64/rootfs/out/rootfs-aarch64-omarchy45.img   # the root, built in omarchy-tab-s2: USERDATA/omarchy-arm64
 $T modules omarchy-arm64 modules.tar.xz
 $T loader out/kboot7.param                                  # from here, every boot runs the loader
 $T status
@@ -167,7 +167,7 @@ $T status
 `Image`, `DTB` and `modules.tar.xz` are what `build-arm64.sh` wrote (its `kernel-out/`).
 
 Before the first arm64 boot, read the check list "Before the first boot on the tablet" in
-[ROOTFS-AARCH64.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROOTFS-AARCH64.md), section 9.
+omarchy-tab-s2's [ROOTFS.md](https://github.com/elkir0/omarchy-tab-s2/blob/main/arm64/docs/ROOTFS.md), section 9.
 
 **8. The rescue.** It is in omarchy-tab-s2's tree since 2026-11-25. Built from it with the
 loader you installed, written to BOOT while the loader works, then to RECOVERY. From this point a loader that fails to fire costs one

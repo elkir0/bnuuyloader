@@ -1,6 +1,6 @@
 /dts-v1/;
 /plugin/;
-/* the bringup boot arguments of the arm64 system (docs/ROOTFS-AARCH64.md) */
+/* the bringup boot arguments of the arm64 system (omarchy-tab-s2's arm64/docs/ROOTFS.md) */
 / {
     fragment@0 {
         target-path = "/chosen";

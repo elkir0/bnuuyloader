@@ -40,9 +40,11 @@ For developers. Tested on one tablet: bootloader `T715XXU2CRH1`, hardware revisi
 | Another unit, another firmware | not tried |
 
 That tablet runs Omarchy 4.5 on arm64 as its daily system: user space in about 13 s, a soak of
-three hours with eight busy cores, the LTE modem's processor online. The rest of that port (the
-kernel configuration, the root image, the tools of the daily system) is in the fork
-[elkir0/bnuuyloader](https://github.com/elkir0/bnuuyloader), under the same `t715/`. The 32-bit
+three hours with eight busy cores, the LTE modem's processor online. The rest of that port is in two
+places: the kernel configuration in the fork
+[elkir0/bnuuyloader](https://github.com/elkir0/bnuuyloader), under the same `t715/`; the root
+image and the tools of the daily system in
+[omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2), under `arm64/`. The 32-bit
 system of [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2) was in the BOOT partition as
 the way back until 2026-11-25; its root was removed that day, and the rescue is in BOOT and
 RECOVERY since.

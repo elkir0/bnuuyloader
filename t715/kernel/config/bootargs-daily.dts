@@ -1,6 +1,6 @@
 /dts-v1/;
 /plugin/;
-/* the daily boot arguments of the arm64 system (docs/ROOTFS-AARCH64.md). "quiet" is console loglevel 4:
+/* the daily boot arguments of the arm64 system (omarchy-tab-s2's arm64/docs/ROOTFS.md). "quiet" is console loglevel 4:
    the boot mark t715-kboot-mark writes at level 3 still reaches the sec_log console, which the
    loader's ledger reads; "splash" for Plymouth, the cursor hidden until it starts. */
 / {

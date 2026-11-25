@@ -6,6 +6,15 @@ tried on the tablet. It holds nothing to flash: no PARAM image can be shared (it
 firmware and one tablet's data), and the arm64 image comes with the system brick,
 [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2).
 
+## Unreleased
+
+- **The Omarchy image went to the system brick.** `t715/rootfs/`, the health check
+  (`t715/tools/t715-arm64-health`), its tests (`t715/tests/`) and `ROOTFS-AARCH64.md` are in
+  [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2), under [arm64/](https://github.com/elkir0/omarchy-tab-s2/tree/main/arm64), where they are kept up to date (since this
+  release: omarchy-mobile's head with the modem's interface, dictation rebuilt for the tablet's
+  ARMv8.0 CPU, a first-run onboarding with the AI apps). This fork keeps the boot: the loader,
+  the kernel, the rescue, the installer, the findings. The guide's links follow.
+
 ## 0.9.0, pre-release (2026-11-25)
 
 The first release of the fork: what the adaptation produced since it began, on 2026-11-23, in one
