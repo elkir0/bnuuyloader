@@ -5,7 +5,7 @@ signed bootloader only starts in 32 bits. Two repositories let it run a 64-bit s
 
 | Brick | Where | What it holds |
 |---|---|---|
-| **The boot** | this fork, [elkir0/bnuuyloader](https://github.com/elkir0/bnuuyloader) | the loader that makes the tablet start an arm64 kernel at every boot, with the boot screen; the kernel patches; the rescue; the tools |
+| **The boot** | `t715/` here, kept in [elkir0/bnuuyloader](https://github.com/elkir0/bnuuyloader) | the loader that makes the tablet start an arm64 kernel at every boot, with the boot screen; the kernel patches; the rescue; the tools |
 | **The system** | [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2) (its page on the 64-bit port: [docs/ARM64.md](https://github.com/elkir0/omarchy-tab-s2/blob/main/docs/ARM64.md)) and `rootfs/` here | Omarchy for the tablet: its 32-bit release today; the recipes of the arm64 image (`rootfs/`, [ROOTFS-AARCH64.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROOTFS-AARCH64.md)) |
 
 There are two ways to use them, and this page is the door to both.
