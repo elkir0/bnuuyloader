@@ -10,10 +10,10 @@ signed bootloader only starts in 32 bits. Two repositories let it run a 64-bit s
 
 There are two ways to use them, and this page is the door to both.
 
-- **Route 1, "I download, I flash, it boots."** For whoever wants arm64 and nothing else. It is
-  the owner's goal. **On 2026-11-25 it is not open yet**: section 1 says exactly where it stands.
-- **Route 2, the long one.** For whoever wants to do it today, and understand. Section 2 is the
-  map; each step links to the page that tells it.
+- **Route 1, "I download, I flash, it installs."** For whoever wants arm64 and nothing else.
+  **Open since omarchy-tab-s2 2.0.0**: section 1.
+- **Route 2, the long one.** For whoever wants every step by hand, and to understand. Section 2 is
+  the map; each step links to the page that tells it.
 
 Two pages this one points to, and what builds the kernel (`t715/kernel/config/`,
 `t715/build-arm64.sh`), are in the fork's `main` only: their links go there. The image is built
@@ -21,8 +21,7 @@ in omarchy-tab-s2, under `arm64/`.
 
 All of it was made and tried on **one tablet**: bootloader `T715XXU2CRH1`, hardware revision 9.
 Since 2026-11-25 that tablet boots Omarchy 4.5 on arm64 by itself at every power-on, with the
-owner's picture as its boot screen; its 32-bit root is gone, and BOOT and RECOVERY hold the
-rescue.
+owner's picture as its boot screen.
 
 ## Before either route
 
@@ -38,54 +37,54 @@ rescue.
   ([RESCUE.md](RESCUE.md)) and, past it, download mode with your own stock PARAM image. Section 2
   keeps a way back at every step: follow its order.
 
-## 1. Route 1: "I download, I flash, it boots"
+## 1. Route 1: "I download, I flash, it installs"
 
-**Not open on 2026-11-25.** There is no file to download that turns a stock, or 32-bit, tablet
-into an arm64 one. Nothing in this section can be done today: it is here to say what the short
-route will be, and what it still lacks.
+**Open since omarchy-tab-s2 2.0.0.** The guide:
+[docs/INSTALL-ARM64.md](https://github.com/elkir0/omarchy-tab-s2/blob/main/docs/INSTALL-ARM64.md)
+in omarchy-tab-s2.
 
-### 1.1 What it will be
-
-| Step | What you will do |
+| Step | What you do |
 |---|---|
-| 1 | Download two files from a release of omarchy-tab-s2: the arm64 Omarchy image for the Tab S2, and the installer image. Check the checksums |
-| 2 | Flash the installer to BOOT and RECOVERY in download mode, with Odin or Heimdall, as the 32-bit port's guide does; put the image on the tablet |
-| 3 | Start the tablet. The installer does the rest by itself and restarts into Omarchy |
+| 1 | Download the image and the installer from [omarchy-tab-s2's release](https://github.com/elkir0/omarchy-tab-s2/releases); check the checksums |
+| 2 | Copy `omarchy-arm64.img` and its `.sha256` into a folder `linux` on a microSD card, or on the internal storage while Android still runs |
+| 3 | Flash the installer (`boot.img` and `recovery.img`, one Odin package) in download mode. The tablet installs itself and restarts into Omarchy's first-run setup |
 
-No computer after step 2, no command to type, nothing to build.
+No command to type, nothing to build. It needs the firmware `T715XXU2CRH1`: the installer checks
+it, and PARAM, before it writes anything.
 
-### 1.2 Why there has to be an installer
+### 1.1 Why there has to be an installer
 
 The loader cannot be shipped as a file. It lives in PARAM, and a PARAM image is Samsung's
 firmware holding data of one tablet: no PARAM image can be distributed, and the forged logo must
 be built from each tablet's **own** stock PARAM. The addresses it depends on are one
-bootloader's, `T715XXU2CRH1`. So an installer has to run on the tablet, build the forged logo
-from that tablet's own PARAM there, and write it. That installer is the main piece missing.
+bootloader's, `T715XXU2CRH1`. So the installer runs on the tablet, builds the loader there from
+that tablet's own PARAM, and writes it.
+
+### 1.2 How it builds the loader
+
+PARAM's first 7340032 bytes are a tar archive of the pictures S-Boot shows. The installer copies
+the tablet's PARAM, replaces the archive's `logo.jpg` by this loader's (the forged logo of
+`kboot7-cas3`, [SPLASH.md](SPLASH.md): the loader's code and its boot screen, no byte of
+Samsung's), moves the members after it, pads with zeros, and writes the result only if its
+sha256 is the one it was built for: the same bytes `scripts/build_kboot.py` writes from the same
+stock image. Before that it checks that the stock part is that firmware's, and saves the whole
+PARAM and EFS to the tablet's storage. The code is omarchy-tab-s2's `boot/initramfs/init`
+(`t715.golden`), its files are `boot/golden/`, and `boot/golden/check-param.py` does the same on a
+computer from a PARAM dump.
 
 ### 1.3 What is ready, what is missing
 
-| Piece | State on 2026-11-25 |
+| Piece | State |
 |---|---|
-| The loader, with the boot screen | **done**, on the owner's tablet at every boot since that day ([SPLASH.md](SPLASH.md)) |
-| The rescue in BOOT and RECOVERY | **done**, on the owner's tablet; tried ([RESCUE.md](RESCUE.md)) |
-| The arm64 kernel and its patches | **done**: Linux 6.12.114, eight cores ([KERNEL-CONFIG.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/KERNEL-CONFIG.md)) |
-| The arm64 Omarchy image | **built from the sources** on the owner's computer; Omarchy 4.5 is the owner's daily system. **Not released** as a file to download |
-| The installer image, for BOOT and RECOVERY | **not written**: it would do on the tablet what section 2 has you do from a computer |
-| A forge of the loader on the tablet | **not written**: the loader is built on a computer today |
-| Another tablet, another firmware | **not tried** |
-
-This is Milestone 5 of [ROADMAP.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROADMAP.md). Until it is done, route 1 is closed.
-
-### 1.4 What you can do today with no tooling
-
-Install the 32-bit Omarchy: it is the turnkey release of omarchy-tab-s2 (1.0.5), and
-[its guide](https://github.com/elkir0/omarchy-tab-s2/blob/main/docs/INSTALL.md) takes a stock
-tablet there with Odin or Heimdall. Nothing of it has to be undone to take route 2
-afterwards: route 2 starts from it.
+| The loader, with the boot screen | **done**, on the owner's tablet at every boot since 2026-11-25 ([SPLASH.md](SPLASH.md)) |
+| The installer, which is the rescue afterwards | **done**, omarchy-tab-s2 2.0.0 |
+| The arm64 kernel and its patches | **done**: Linux 6.12.114, eight cores ([KERNEL-CONFIG.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/KERNEL-CONFIG.md)); the release's kernel is the source tree of omarchy-tab-s2 1.0.5 with `../kernel/patches/` |
+| The arm64 Omarchy image | **released** with omarchy-tab-s2 2.0.0 |
+| Another tablet, another firmware | **not tried**: the installer refuses another bootloader, and a PARAM it does not know |
 
 ## 2. Route 2: the long one, for power users
 
-This is today's route. What it takes: the tablet running the 32-bit Omarchy, a computer with
+Every step by hand, from a computer: how the reference tablet got there first. What it takes: the tablet running the 32-bit Omarchy, a computer with
 Docker (everything here was done on macOS on Apple silicon, and the scripts assume it: about
 20 GB free), the USB cable, and the readiness to recover a tablet from download mode if the
 worst happens. A build takes from a few minutes to three quarters of an hour; the first arm64
@@ -203,4 +202,4 @@ is one tablet's: another unit, another firmware, and the whole method has to be 
 | You want BOOT's system back for good | | `$T unloader` (it needs the 32-bit root, or `--no-32bit-root-ok` when the rescue is in BOOT) |
 | Nothing answers, and the screen never shows the boot screen | the loader hangs before it can hand back: not the one for this bootloader, or a wrong logo | download mode, and flash your stock PARAM back with Heimdall or Odin |
 
-The last line is the one the rescue exists to make rare, and the one route 1 exists to remove.
+The last line is the one the rescue exists to make rare.

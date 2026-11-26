@@ -36,7 +36,7 @@ For developers. Tested on one tablet: bootloader `T715XXU2CRH1`, hardware revisi
 | The way back after a failed attempt | seen on the tablet twice over: with the 32-bit system in BOOT (it came back by itself, with nobody at the tablet), then with the rescue in BOOT ([docs/RESCUE.md](docs/RESCUE.md)): two boots handed to it, then arm64 tried again |
 | A loader lost in PARAM, put back by the rescue | seen once: back under arm64 35 s after the restart |
 | A boot by the power key with the loader in PARAM | seen once: arm64, marked up |
-| A turnkey install (download, flash, boot) | not yet: [docs/GO-ARM64.md](docs/GO-ARM64.md), section 1 |
+| A turnkey install (download, flash, it installs) | omarchy-tab-s2 2.0.0's installer: [docs/GO-ARM64.md](docs/GO-ARM64.md), section 1 |
 | Another unit, another firmware | not tried |
 
 That tablet runs Omarchy 4.5 on arm64 as its daily system: user space in about 13 s, a soak of
