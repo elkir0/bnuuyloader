@@ -4,10 +4,10 @@ What a Linux kernel needs to boot on the Galaxy Tab S2 8.0 (SM-T715) in 64 bits,
 loader of [../](../README.md).
 
 The tree is the kernel tree of [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2): Linux
-v6.12.114 plus its patch series, on the branch of its 1.0.5 release. The nine patches of `patches/`
+v6.12.114 plus its patch series, on the branch of its 1.0.5 release. The ten patches of `patches/`
 go on top of it, in their order, with `git am`. The kernel that runs on the tablet is
-`6.12.114-00105-g96a2510ad486`: that tree with the nine patches, built with the configuration of
-`config/` (in the fork).
+`6.12.114-00106-gd30e37ad41ab`: that tree with the ten patches, built with the configuration of
+`config/` (in the fork). It is the kernel of omarchy-tab-s2 2.1.0 (2026-11-26).
 
 ## The patches
 
@@ -22,13 +22,18 @@ go on top of it, in their order, with `git am`. The kernel that runs on the tabl
 | `0007` | **arm64: dts: exynos: gts28ltexx: the A57 at 1.2 GHz at most (stage 1).** The A57 levels above 1.2 GHz are left out of the board's table until stage 2 of the frequency plan has run on arm64. BUCK2 is capped at 1.0625 V, the A57 cooling states are renumbered. |
 | `0008` | **arm64: dts: exynos: gts28ltexx: no System MMU for a 64-bit kernel.** On arm64 the kernel selects `OF_IOMMU`. With no System MMU driver built, DECON and three other masters waited for the deferred-probe timeout, 16.9 s into the boot: a black screen behind the bootloader's logo. The twelve System MMUs are disabled; DECON binds at 0.5 s. |
 | `0009` | **misc: modem_v1: build on arm64.** The driver has no 32-bit-only code; a Kconfig dependency and a `sizeof(size_t) == 4` assertion kept it to ARM. |
+| `0010` | **arm64: exynos5433: CPU hot-unplug and suspend to RAM without PSCI.** Hot-unplug is the 32-bit kernel's `exynos5433_cpu_die()`, from AArch64 EL1: the HOTPLUG boot flag, the core's power off in the PMU, then the monitor's SHUTDOWN call; a core powered back on comes in again through the AArch32 stub of `0002`, and `cpu_kill` polls the PMU status. By hand it stays refused until `/sys/module/smp_exynos5433/parameters/hotplug` is 1; a system sleep may. Suspend to RAM (`CONFIG_ARM64_EXYNOS5433_SUSPEND`): the 32-bit kernel's PMU and clock programming, unchanged; the monitor's SLEEP call, from AArch64, inside `cpu_suspend()`; and the way back through a second twelve-word AArch32 stub, `exynos5433_resume_entry`, which the firmware jumps to on a wake-up: `SMC 0x82000400` again, EL2 set up as for a secondary, `eret` to `cpu_resume` at EL1. `exynos5433_sleep=on` or `=dryrun` and the one-shot arm switch work as on 32 bits. `c2test` powers one secondary down and back through the resume stub while the system runs. |
 
-Patches `0001` to `0003` and `0005` to `0006` are for any Exynos 5433 started this way. Patches
+Patches `0001` to `0003`, `0005`, `0006` and `0010` are for any Exynos 5433 started this way.
+`0010` touches only `arch/arm64/kernel/`, with its entry in `arch/arm64/Kconfig` and its line in the
+Makefile: no board file, no driver. Like `0002`, it relies on this tablet's secure monitor: another
+device's monitor should be read first ([../docs/SMP-MONITOR.md](../docs/SMP-MONITOR.md)). Patches
 `0004`, `0007`, `0008` and `0009` change files that exist only in the tree of omarchy-tab-s2: the
 board file of this tablet and the modem driver it imports.
 
-The findings behind them are in [../docs/FINDINGS.md](../docs/FINDINGS.md), sections 13, 14, 17 and
-19.
+The findings behind them are in [../docs/FINDINGS.md](../docs/FINDINGS.md), sections 13, 14, 17, 19
+and 23. The comments of `0010` cite the monitor's reading as `docs/arm64-monitor-smc.md` of the
+port: it is [../docs/SMP-MONITOR.md](../docs/SMP-MONITOR.md) here.
 
 ## What the kernel must be
 
@@ -36,6 +41,8 @@ The findings behind them are in [../docs/FINDINGS.md](../docs/FINDINGS.md), sect
 |---|---|
 | `CONFIG_CLKSRC_EXYNOS_MCT=y` | the time base: the architected timer does not run |
 | `CONFIG_ARM64_EXYNOS5433_SMP=y` | the seven other cores |
+| `CONFIG_ARM64_EXYNOS5433_SUSPEND=y` | suspend to RAM without PSCI (`0010`). It needs `ARM64_EXYNOS5433_SMP`, `SUSPEND`, `HOTPLUG_CPU` and `CPU_PM`, and registers nothing unless the command line has `exynos5433_sleep=on` or `=dryrun` |
+| `CONFIG_COMPAT=y` | 32-bit user space. Waydroid's arm64 Android image runs 32-bit services (`boringssl_self_test32`, `zygote64_32`) and 32-bit apps. Off until 2.1.0; the build's check no longer requires it off |
 | `CONFIG_SAMSUNG_SEC_LOG_CONSOLE=y` | `console=sec_log`: the kernel's log goes on in S-Boot's RAM log ring, where the loader's ledger reads `KBOOT: up`. Without that mark the ledger counts every boot as a failed try, and the tablet never boots arm64 twice in a row |
 | `CONFIG_S3C2410_WATCHDOG=y` | the loader arms the watchdog; the kernel must neither stop it nor let it fire |
 | The initramfs built in | the loader passes no initrd: the kernel's own initramfs mounts the root |
@@ -57,6 +64,13 @@ matter to the loader:
 A test image, which resets by itself, uses `watchdog.handle_boot_enabled=0` instead: there the
 kernel must not feed the watchdog at all.
 
+Since 2.1.0 the daily arguments also carry `exynos5433_sleep=dryrun`, for the kernel rather than
+the loader: the system sleep is registered, and a sleep is real only once armed
+(`/sys/module/exynos5433_sleep/parameters/arm`, for one sleep). The root's `t715-sleep` arms it
+after it has powered the modem's CP and the Wi-Fi/Bluetooth chip down; a suspend that nothing
+prepared stays a dry run. With the Wi-Fi chip left up, the first real sleep never resumed: the
+board reset.
+
 ## Building
 
 In the fork: `../build-arm64.sh` builds the kernel in a container from a clone of that tree, with
@@ -68,12 +82,18 @@ The loader checks what it is given: the arm64 magic of the `Image`, a text offse
 `image_size` of its header (the kernel's footprint in memory, `.bss` included), and the magic and
 the `totalsize` of the device tree.
 
-## State on 2026-11-25
+## State on 2026-11-26
 
-**Proven on the tablet.** The nine patches, on Linux 6.12.114: one core first, then the eight cores
+**Proven on the tablet.** The ten patches, on Linux 6.12.114: one core first, then the eight cores
 under load (2026-11-24), then the full kernel of the daily system, at every boot since 2026-11-25.
+`0010` on 2026-11-26: CPU7, then the whole A57 cluster, then all seven secondaries down to CPU0
+alone and back, four rounds, no error; `c2test` on CPU1 (down in 73 us, back 81 us after
+power-on); five real sleeps out of five woke, with the modem's CP and the Wi-Fi/Bluetooth chip
+powered down first: four on the PMIC's RTC alarm, one on the power key after 165 s on battery,
+through the root's `t715-sleep` ([../docs/FINDINGS.md](../docs/FINDINGS.md), section 23).
 
 **Built or rehearsed only.** Nothing: every patch has run.
 
-**Open.** Hot-unplug without PSCI on arm64: the kernel refuses to take a CPU offline. Suspend to
-RAM: the 32-bit code is ARM32 machine code. The A57 above 1.2 GHz. Another kernel version.
+**Open.** A sleep with the Wi-Fi chip left powered (the first try reset the board). The power the
+tablet draws asleep. A secondary's power-down as an idle state: `c2test` shows the way back, no
+cpuidle driver uses it. The A57 above 1.2 GHz. Another kernel version.

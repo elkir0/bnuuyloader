@@ -513,6 +513,13 @@ still untried.
 
 An experiment of its own, from the kernel or from the loader, after the eight cores are up.
 
+**Done on 2026-11-26**, with patch 0010 of `../kernel/patches/`: the three steps above from AArch64
+EL1, with x3 = 0 and x2 ignored by the monitor; `cpu_kill` returns 0 for a dead core, arm64's
+convention. The monitor takes the call as from AArch32, and a core powered on again comes back
+through the boot register in AArch32. CPU7, the A57 cluster, then all seven secondaries went down and
+back, four rounds, with no error ([FINDINGS.md](FINDINGS.md), section 23;
+[SMP-MONITOR.md](SMP-MONITOR.md), section 6.1). The boot CPU must never go down this way.
+
 ## 12. Risks
 
 For the hardware: the method writes the registers of §6 with the bits the 32-bit kernel writes
@@ -530,7 +537,7 @@ With `nosmp` it writes nothing at all.
 | R7 | A hand edit puts `bti c` back at the AArch32 entry | It is what `SYM_FUNC_START` does | the build script compares the words in the linked image |
 | R8 | The kernel image above 4 GiB | The monitor takes 32-bit addresses | `cpu_prepare` refuses; cannot happen with this board's memory |
 | R9 | The loader changes to hand the kernel over at EL2 | The stub erets to EL1 | one line out of §4.2; otherwise "inconsistent modes" and a taint |
-| R10 | Hot-unplug is lost (§11) | The monitor's shutdown call is untried from AArch64 | an experiment of its own |
+| R10 | Hot-unplug is lost (§11) | The monitor's shutdown call is untried from AArch64 | an experiment of its own: done on 2026-11-26, it works (§11) |
 | R11 | A hang on a PMU write | None known: the 32-bit kernel writes the same registers | the watchdog policy: the kernel never feeds it, so the tablet resets and falls back |
 
 Not a risk: interrupts on the arriving core (masked first thing, on both sides of the SMC); a
@@ -647,7 +654,7 @@ because `exynos5433_cpu_init()` shifted the MPIDR by `MPIDR_LEVEL_BITS_SHIFT * 2
 `smpk3` four A53 online, `smpk4` **all eight CPUs online and busy under load**. The A57 at 1.2 GHz
 heat fast under full load (75 °C in 13 s): see §8.4 there.
 
-## State on 2026-11-25
+## State on 2026-11-26
 
 **Proven on the tablet.** On 2026-11-24 the method, `samsung,exynos5433-el2`, brought up the
 eight cores of the 64-bit kernel (`SMP-EXPERIMENT.md` §8): CPU4, an A57, with `smpk2`; the four
@@ -655,13 +662,15 @@ A53 with `smpk3`; all eight, busy under load, with `smpk4`. That answers U1 (the
 switches a secondary) and U5 (the A57 cluster comes up with no cluster or L2 write); no failure
 of U4 or R4 is recorded. The method is in the full kernel, and the tablet boots the arm64 system
 by itself at every boot since 2026-11-25. A soak of several hours on 2026-11-25 ran twelve phases
-of 3 min with eight busy cores, without a reboot (`ROADMAP.md`).
+of 3 min with eight busy cores, without a reboot (`ROADMAP.md`). On 2026-11-26 the method gained
+its `cpu_die` and `cpu_kill` (patch 0010, §11): the seven secondaries go down and come back.
 
 **Built or rehearsed only.** Nothing of the method: all that was built for it ran on the tablet.
-Not built: the stub without its `eret` (§4.2), the invalidation of R4, and `cpu_die` (§11), so a
-core cannot be unplugged. The binding is written and `dtbs_check` was not run (§16).
+Not built: the stub without its `eret` (§4.2) and the invalidation of R4. The binding is written
+and `dtbs_check` was not run (§16).
 
-**Open.** Hot-unplug and re-plug, suspend, and a kernel with PM domains and cpuidle
-(`SMP-EXPERIMENT.md` §8.4). The meaning of `0x800` and `1`, of the boot flags and of
-`UP_SCHEDULER` (U7), and the alignment of the entry (U3, §14.2). The monitor's own code
-(`SMP-MONITOR.md`). On the daily system, `schedutil` under real use and idle power (`ROADMAP.md`).
+**Open.** A kernel with PM domains and cpuidle (`SMP-EXPERIMENT.md` §8.4). Hot-unplug and re-plug,
+and suspend, work since 2026-11-26 (§11; `FINDINGS.md`, section 23). The meaning of `UP_SCHEDULER`
+(U7), and the alignment of the entry (U3, §14.2). The meaning of `0x800` and `1` and of the boot
+flags was read in the monitor's code on 2026-11-26 (`SMP-MONITOR.md`, sections 3.1 and 5.3). On the
+daily system, `schedutil` under real use and idle power (`ROADMAP.md`).

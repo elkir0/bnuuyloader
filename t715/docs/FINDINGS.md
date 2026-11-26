@@ -15,7 +15,7 @@ How sure each fact is:
 | Tag | Meaning |
 |---|---|
 | **[hardware]** | Observed on the tablet: a line of the cycle log, a line the loader wrote in S-Boot's log ring, or a dated observation written in a comment of the loader's code. |
-| **[static]** | Read in code: S-Boot's code through the disassembler and the call-path tools of `../loader/scripts/`, the loader's source, or Linux. |
+| **[static]** | Read in code: S-Boot's code through the disassembler and the call-path tools of `../loader/scripts/`, the secure monitor's code (section 23), the loader's source, or Linux. |
 | **[emulator]** | Seen only in the Unicorn rehearsal. Not a measurement. |
 
 Paths such as `drivers/regulator/core.c` are files of the kernel tree of omarchy-tab-s2 (v6.12.114
@@ -246,7 +246,7 @@ AArch64 code at EL2.
 | MMU | off | [hardware] |
 | Caches | off | [hardware] |
 | `VBAR_EL2` | 0: an exception before the table is replaced is a jump to address 0 | [hardware] |
-| `HCR_EL2` | 2: EL1 executes AArch64 | [hardware] |
+| `HCR_EL2` | 2: bit 1 (SWIO) only. RW, bit 31, is 0; the loader sets it before EL1 (section 8). Read here as RW until 2026-11-26 (section 23) | [hardware] |
 | `MIDR_EL1` | 0x410fd031: a Cortex-A53 r0p1 | [hardware] |
 | `MPIDR_EL1` | 0x80000100: the boot CPU, the first core of the A53 cluster | [hardware] |
 | `DAIF` | masked by the loader's first instruction; its state at entry was not recorded | |
@@ -554,7 +554,9 @@ hacky, but it works".
 **How the cores are started on this board.** The firmware gives a kernel no PSCI. The PMU powers a
 core on and the monitor releases it in **AArch32** at the address the kernel leaves in one register
 of sysram-ns (+0x1c, one for all cores). That is how the vendor kernel and the 32-bit kernel start
-their cores. A 64-bit kernel cannot run that way.
+their cores. A 64-bit kernel cannot run that way. (Strictly, the monitor releases the core at
+sysram-ns + 0x0, where a stub that BL2 copied there waits for that register and jumps to it:
+section 23.)
 
 **The method.** An enable-method of the kernel's own, `samsung,exynos5433-el2`
 (`CONFIG_ARM64_EXYNOS5433_SMP`, patches 0002 to 0004 of `../kernel/patches/`):
@@ -600,8 +602,9 @@ same slip made `exynos5433_show_core()` print a wrong MPIDR.
 warns when the timer's rate reads 0: these cores have no AMU, so nothing is lost, and patch 0006
 returns quietly in that case.
 
-**Not done.** Hot-unplug: without a `cpu_die` the kernel refuses to take a CPU offline, and the
-monitor's shutdown call has not been tried from AArch64. Suspend to RAM.
+**Not done then.** Hot-unplug: without a `cpu_die` the kernel refused to take a CPU offline, and the
+monitor's shutdown call had not been tried from AArch64. Suspend to RAM. Both work since
+2026-11-26, with patch 0010: section 23.
 
 ## 18. The three arm64 boots of 2026-11-24
 
@@ -721,7 +724,100 @@ Read on 2026-11-25, when a picture was put in the forged logo. Told in full in
 | A logo of 2049 rows whose trapped block is black draws 16 zero bytes over the heap head, and `malloc_large` never returns | [emulator] |
 | The loader's ARM32 code writes 16 bytes at 0x67B00000 for S-Boot's later requests: row 1877 of the screen, pixel 512 | [static], [emulator] |
 
-## State on 2026-11-25
+## 23. The monitor's calls from AArch64: hot-unplug and suspend to RAM
+
+The 32-bit kernel takes a core down, and puts the SoC to sleep, through two calls of the secure
+monitor made from AArch32: SHUTDOWN (-7) and SLEEP (-3). Whether a 64-bit kernel at EL1 could make
+them, and how a core, or the whole SoC, would come back to it, was open (section 17). Patch 0010 of
+`../kernel/patches/` is the answer, in omarchy-tab-s2 2.1.0 (2026-11-26).
+
+**How it was established.** First a static reading of the monitor: its code in the boot partition
+(boot0, AArch64 at EL3, loaded at 0x02024000), with BL1 before it and the ARM32 code after it
+(BL2, S-Boot), read with a disassembler; nothing was run for it. It is told in full in
+[SMP-MONITOR.md](SMP-MONITOR.md), sections 2 to 9, with the monitor's addresses. Then the kernel
+code, and tests on the tablet on 2026-11-26, in this order: one core unplugged, then a cluster,
+then all seven secondaries; a secondary's power-down and return through the resume path while the
+system runs (`c2test`); three dry runs; real sleeps.
+
+**What the monitor does, read in its code.**
+
+| Fact | Tag |
+|---|---|
+| One dispatcher for every caller. The vectors for a lower exception level in AArch64 and in AArch32 run the same code; the function id is compared as w0, the upper half of x0 ignored, so a negative id (-3, -7) from AArch64 works as from AArch32. The caller's exception level is not examined | [static] |
+| A negative id is turned into `0x82000000 \| -id`: SLEEP is 0x82000003, SHUTDOWN 0x82000007. The calls of the 32-bit kernel that the monitor lacks (INIT, INFO, CPU1BOOT and others) return without writing anything | [static] |
+| No PSCI and no SMCCC service is registered. An id of an unregistered service (0x84000000, PSCI's version, or 0x80000000) is a harmless probe: it returns 0xFFFFFFFF in x0 with the upper half zero, not sign-extended, and runs nothing. 0x820000EE returns 0 | [static] |
+| For an AArch64 caller x0 to x17 come back clobbered: x8 to x17 are saved for an AArch32 caller only, and x0 to x3 hold what the handler wrote, or nothing fresh. x18 to x30, SP_EL0, the EL1 system registers and the FP/SIMD registers are kept. Linux's out-of-line SMCCC call allows for that | [static] |
+| SHUTDOWN: x1 = 0 for this core, non-zero for the whole cluster (for its last core); x2 is not read; x3 = 1 would select a path for the last core of the system, so x3 = 0. It cleans and invalidates L1 by set/way, takes the core out of coherency, and waits in WFI, where the PMU powers the core down. For a cluster it goes on only if the PMU shows the core alone in it: then L1 and L2, and the cluster's snoops off at the CCI-400. Otherwise it returns to the caller, x0 to x3 not written | [static] |
+| SLEEP: copies sysram-ns + 0x8 (the resume address) and + 0xc (the flag) to the PMU's INFORM0 and INFORM1, unchecked; saves the secure iRAM to DRAM; cleans every cache level by set/way; leaves coherency; waits in WFI. If the WFI returns (a wake-up source pending), the caller gets x0 = -1 in its own state | [static] |
+| The word 0x2bedf00d before the resume address is checked by nothing in the boot partition: not BL1, the monitor, BL2, its stub or S-Boot. The 64-bit resume stub goes without it | [static] |
+| No core keeps AArch64 across a power-down. Each core's init at EL3 clears SCR_EL3.RW, and every way out of the monitor after a power-on is AArch32 SVC, a constant | [static] |
+| A secondary powered on goes to sysram-ns + 0x0, a stub that BL2 copied there, which jumps to the address in + 0x1c: but only if its boot flag (sysram-ns + 0x28 + 4 × index, index = Aff0 + 4 × Aff1) has bit 2, HOTPLUG; without it the monitor parks the core in WFI at EL3 | [static] |
+| The boot CPU (MPIDR 0x100) on a wake-up: the monitor reruns its cold init; BL2 at 0x0203B000, in AArch32 SVC, finds 0xbad in INFORM1, restores what it must, and through its stub jumps to the address in INFORM0, in AArch32 SVC with the MMU off | [static] |
+| `0x82000400` rewrites the calling core's secure context and leaves through it: the entry in x1, AArch64 EL2 with D, I and F masked when x3 = 1, SCR with NS and RW. It sets nothing in HCR_EL2 or SCTLR_EL2. It is the launcher of Samsung's EL2 hypervisor; it refuses only once a global word is set, and only `0x82000401`, the hypervisor's "done" call, sets it. So it can be called again and again, by every secondary, after a hot-plug, after a sleep, as long as `0x82000401` is never called | [static] |
+| What the loader reads in HCR_EL2 at the EL2 entry, 2, is bit 1 (SWIO), not RW: the monitor writes 0 there at each core's init, and that bit reads as one on these cores. CPTR_EL2 0x33FF is its RES1 bits: no trap. Section 6 and [SMP-EXPERIMENT.md](SMP-EXPERIMENT.md), section 7.2, read them otherwise until this reading | [static] |
+
+**The dangers it shows.**
+
+- Treat x0 to x17 as clobbered by every call: an inline `smc` with a short clobber list is wrong here.
+- Never unplug the boot CPU, MPIDR 0x100. Its next power-on would rerun the monitor's cold init
+  while the other cores run (every core's context zeroed), and send it to BL2's cold path.
+- Never call `0x82000401`: after it every `0x82000400` fails until the next cold boot, so no
+  secondary, and no boot CPU waking up, could reach AArch64 again.
+- SHUTDOWN compares x1 and x3 as 64-bit values: x1 in {0, 1}, x3 = 0.
+- After the switch, SCR_EL3.FIQ and SCR_EL3.HCE are 0: a secure interrupt would reach EL1 as an
+  FIQ (none was seen), and HVC is undefined. No Trustonic call may be made from a switched core.
+  An exception the monitor does not handle hangs the core at EL3, with no reset.
+
+**Hot-unplug from AArch64 EL1.** The 32-bit kernel's sequence, register for register:
+
+1. the core's HOTPLUG boot flag, at sysram-ns + 0x28 + 4 × index;
+2. the PMU core's CONFIGURATION &= ~0xF;
+3. `SMC` SHUTDOWN (-7), x1 = 0 (this core) or non-zero (the whole cluster, for its last core), x2
+   ignored, x3 = 0.
+
+A core powered back on starts again in AArch32 at the address in sysram-ns + 0x1c, through the
+secondaries' stub of section 17, as at boot. `cpu_kill`, on another core, polls the PMU status;
+arm64's convention is 0 = dead, the opposite of ARM32's. By hand it stays refused until
+`/sys/module/smp_exynos5433/parameters/hotplug` is 1; a system sleep may.
+
+**Suspend to RAM from AArch64.** The 32-bit kernel's PMU and clock programming, unchanged; the
+secondaries go down through the hot-unplug above, and the boot CPU sleeps alone. The kernel leaves
+the resume address and 0xbad in sysram-ns, then makes the monitor's SLEEP call from AArch64 inside
+`cpu_suspend()`; Linux cleans no cache, the monitor cleans every level. The way back:
+
+```
+ wake-up: the monitor's cold init, then BL2, which finds 0xbad at sysram-ns + 0xc
+    |
+    v
+ AArch32 SVC, MMU off                 AArch64, EL2                       AArch64, EL1
+ exynos5433_resume_entry     SMC      EL2 set up as for       eret       cpu_resume: back
+ (the address at             ------>  a secondary core      -------->    from cpu_suspend()
+  sysram-ns + 0x8)
+   SMC 0x82000400
+```
+
+`exynos5433_resume_entry` is a second twelve-word AArch32 stub, built as the secondaries' one. With
+`exynos5433_sleep=on` the kernel always sleeps; with `exynos5433_sleep=dryrun` it sleeps for real
+only once armed, for one sleep (`/sys/module/exynos5433_sleep/parameters/arm`), as on 32 bits.
+`c2test` (`/sys/module/smp_exynos5433/parameters/c2test`) powers one secondary down and back
+through `exynos5433_resume_entry` while the system runs: the way back of a sleep, without one.
+
+**What the tablet showed**, on 2026-11-26.
+
+| Test | Result | Tag |
+|---|---|---|
+| Hot-unplug: CPU7, then the whole A57 cluster, then all seven secondaries down to CPU0 alone and back | four rounds, no error | [hardware] |
+| `c2test` on CPU1 | `cpu_suspend()` returned 0: down in 73 us, back 81 us after power-on | [hardware] |
+| Three dry runs | the suspend path ran, and no sleep, as meant | [hardware] |
+| A first real sleep, the Wi-Fi chip left up | never resumed: the board reset, and S-Boot booted BOOT | [hardware] |
+| Real sleeps with the modem's CP and the Wi-Fi/Bluetooth chip powered down first | five of five woke, with the eight cores, Wi-Fi, Bluetooth and the modem back: four on the PMIC's RTC alarm (WAKEUP_STAT 0x80000001, CENTRAL_SEQ 0x00010000 afterwards), one on the power key after 165 s on battery, through the root's `t715-sleep` | [hardware] |
+
+What the tablet confirmed of the reading: SHUTDOWN from AArch64 powers a core and a cluster down;
+a core powered on comes back in AArch32 through the boot register; `0x82000400` accepts a second
+call from every core, and from the boot CPU after a sleep; SLEEP from AArch64 puts the SoC to
+sleep, and the wake-up goes through BL2 to the resume address in AArch32.
+
+## State on 2026-11-26
 
 **Proven on the tablet**, by the cycle log and by the loader's own lines in S-Boot's log ring.
 
@@ -747,14 +843,18 @@ Read on 2026-11-25, when a picture was put in the forged logo. Told in full in
   22), and the loader under it fires at every boot; S-Boot writes its own data at the end of
   PARAM when it boots a kernel itself (section 10); the rescue in BOOT puts a lost loader back,
   and the ledger hands two boots to it, then tries arm64 again ([RESCUE.md](RESCUE.md)).
+- On 2026-11-26 (section 23): hot-unplug from AArch64, seven secondaries down and back, four
+  rounds; a secondary's power-down and return through the resume stub; five real sleeps out of
+  five, with the modem's CP and the Wi-Fi/Bluetooth chip down first.
 
 **Built and rehearsed only, or read in code.** The rehearsals in the emulator (the allocator's
 walk, the payload up to its `smc`, the page tables, the vector table, the `eret`, the 27 situations
 of the production loader, the ledger against real dumps) narrow the risk before each test; none of
 them is a measurement. The parameter matcher of section 16, the kmsg limit and the Kconfig entries
-of sections 14 and 17 were read in code.
+of sections 14 and 17 were read in code. So was the monitor (section 23); the tablet confirmed what
+patch 0010 relies on, not every path of the reading.
 
 **Open.** Another unit and another bootloader. The eMMC reader's limits. What died in the first
 boot of the full 17 MB kernel (`kboot5`). Whether the A57 cores themselves run at 1200 MHz or only
-their PLL. Hot-unplug and suspend to RAM without PSCI on arm64. The A57 above 1.2 GHz on arm64.
+their PLL. A sleep with the Wi-Fi chip left up, which reset the board. The A57 above 1.2 GHz on arm64.
 RECOVERY with the rescue's image, written and never booted.
