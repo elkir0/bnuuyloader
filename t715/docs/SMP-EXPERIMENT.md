@@ -193,8 +193,8 @@ What it shows, fact by fact:
 | The power-on from EL2 works: STATUS `0x10380000` then `0x2004000F`, CONFIGURATION `0x8000000F`, after one millisecond waited | the two `smp:` PMU lines |
 | The core is A53 core 1: MPIDR `0x80000101`, in AArch32 and in AArch64 | the three lines of the core |
 | It starts in AArch32, SVC mode, A, I and F masked, MMU and caches off, VBAR 0, CPACR with FP/NEON allowed, NSACR `0xC00`: CPSR `200001d3`, SCTLR `00c5083a` | line 1 and the scratch page |
-| The monitor's call switches it: CurrentEL 8, with HCR_EL2 already 2 (RW) and SCTLR_EL2 `30c5083a` (MMU and caches off), as the boot CPU at its own entry | line 2 |
-| At EL2 the rest is not usable as it stands: CPTR_EL2 `0x33FF` (traps on), CNTHCTL_EL2 3, CNTVOFF_EL2 `0xF9FB1FFFAFDFFFFC`, SP `0x3F7CB3ECFFCBF2B4`, SP_EL0 0, ELR_EL2 and SPSR_EL2 old state: the 64-bit stub sets CNTVOFF, CPTR_EL2, MDCR_EL2, CNTHCTL_EL2 and HCR_EL2 itself before its eret, as the loader's `boot_el1.S` does | line 2, the scratch page |
+| The monitor's call switches it: CurrentEL 8, with HCR_EL2 already 2 and SCTLR_EL2 `30c5083a` (MMU and caches off), as the boot CPU at its own entry. That 2 is bit 1, SWIO, not RW: RW, bit 31, is 0 (read as RW here until 2026-11-26; `SMP-MONITOR.md`, section 9) | line 2 |
+| At EL2 the rest is not usable as it stands: CPTR_EL2 `0x33FF` (its RES1 bits: no trap, despite what this page said until 2026-11-26), CNTHCTL_EL2 3, CNTVOFF_EL2 `0xF9FB1FFFAFDFFFFC`, SP `0x3F7CB3ECFFCBF2B4`, SP_EL0 0, ELR_EL2 and SPSR_EL2 old state: the 64-bit stub sets CNTVOFF, CPTR_EL2, MDCR_EL2, CNTHCTL_EL2 and HCR_EL2 itself before its eret, as the loader's `boot_el1.S` does | line 2, the scratch page |
 | It enters EL1 by the eret: CurrentEL 4, SCTLR_EL1 `00c5083a`, DAIF `0x3C0` | line 3 |
 | The core had finished (stage 5) before the boot CPU's first look, less than a millisecond after STATUS turned `0xF` | the watchdog line: 0 passes |
 | SP_EL0 was 0 on the boot CPU too, so the stub did not set sp_usr, and the call worked without | the SP_EL0 line |
@@ -328,7 +328,7 @@ Not shown: hot-unplug and re-plug, a kernel with PM domains and cpuidle, suspend
 The temperature line printed before the load is empty in these two cycles (a line written in five
 pieces to `/dev/kmsg`, each its own record); fixed in `init.c` for the next build.
 
-## State on 2026-11-25
+## State on 2026-11-26
 
 **Proven on the tablet.** On 2026-11-24: the switch works on a secondary core (`smp2`, §7.2);
 the kernel's own method starts an A57 (`smpk2`), the four A53 (`smpk3`) and all eight cores, each
@@ -340,5 +340,6 @@ load (`CPUFREQ-THERMAL.md`).
 **Built or rehearsed only.** Nothing: every image this document describes ran on the tablet,
 `smp1` included.
 
-**Open.** Hot-unplug and re-plug, suspend, and a kernel with PM domains and cpuidle (§8.4). The
-monitor's side: its static reading was begun on 2026-11-24 and not resumed (`SMP-MONITOR.md`).
+**Open.** A kernel with PM domains and cpuidle (§8.4). Hot-unplug and re-plug, and suspend, work
+since 2026-11-26 (patch 0010; `FINDINGS.md`, section 23); the monitor's static reading, begun on
+2026-11-24, was finished that day (`SMP-MONITOR.md`).

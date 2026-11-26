@@ -11,7 +11,7 @@ signed bootloader only starts in 32 bits. Two repositories let it run a 64-bit s
 There are two ways to use them, and this page is the door to both.
 
 - **Route 1, "I download, I flash, it installs."** For whoever wants arm64 and nothing else.
-  **Open since omarchy-tab-s2 2.0.0**: section 1.
+  **Open since omarchy-tab-s2 2.0.0**; its current release is 2.1.0: section 1.
 - **Route 2, the long one.** For whoever wants every step by hand, and to understand. Section 2 is
   the map; each step links to the page that tells it.
 
@@ -39,7 +39,7 @@ owner's picture as its boot screen.
 
 ## 1. Route 1: "I download, I flash, it installs"
 
-**Open since omarchy-tab-s2 2.0.0.** The guide:
+**Open since omarchy-tab-s2 2.0.0; its current release is 2.1.0 (2026-11-26).** The guide:
 [docs/INSTALL-ARM64.md](https://github.com/elkir0/omarchy-tab-s2/blob/main/docs/INSTALL-ARM64.md)
 in omarchy-tab-s2.
 
@@ -77,9 +77,9 @@ computer from a PARAM dump.
 | Piece | State |
 |---|---|
 | The loader, with the boot screen | **done**, on the owner's tablet at every boot since 2026-11-25 ([SPLASH.md](SPLASH.md)) |
-| The installer, which is the rescue afterwards | **done**, omarchy-tab-s2 2.0.0 |
-| The arm64 kernel and its patches | **done**: Linux 6.12.114, eight cores ([KERNEL-CONFIG.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/KERNEL-CONFIG.md)); the release's kernel is the source tree of omarchy-tab-s2 1.0.5 with `../kernel/patches/` |
-| The arm64 Omarchy image | **released** with omarchy-tab-s2 2.0.0 |
+| The installer, which is the rescue afterwards | **done**, since omarchy-tab-s2 2.0.0; 2.1.0 today |
+| The arm64 kernel and its patches | **done**: Linux 6.12.114, eight cores, suspend to RAM and hot-unplug since 2.1.0 ([KERNEL-CONFIG.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/KERNEL-CONFIG.md)); the release's kernel is the source tree of omarchy-tab-s2 1.0.5 with `../kernel/patches/` |
+| The arm64 Omarchy image | **released** with omarchy-tab-s2 2.1.0 (first with 2.0.0) |
 | Another tablet, another firmware | **not tried**: the installer refuses another bootloader, and a PARAM it does not know |
 
 ## 2. Route 2: the long one, for power users
@@ -183,10 +183,13 @@ installer's `unloader` refuses to put the stock PARAM back while it is gone, unl
 **What works**, on the one tablet tried: Omarchy 4.5 on arm64 as a daily system, user space in
 about 13 s, a soak of three hours with eight busy cores; the boot screen of your choice; display,
 touch, GPU, Wi-Fi, Bluetooth, sound, sensors, battery, the microSD card and the LTE modem's
-processor as far as the health check sees. The details: [../README.md](../README.md), section 1,
+processor as far as the health check sees. Since omarchy-tab-s2 2.1.0: suspend to RAM (the root
+powers the modem's processor and the Wi-Fi/Bluetooth chip down before each sleep), and Android
+apps through Waydroid, which the kernel's `COMPAT` makes possible. The details:
+[../README.md](../README.md), section 1,
 and [ROADMAP.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROADMAP.md).
 
-**What does not yet**: suspend to RAM, the A57 cores above 1.2 GHz, Android apps, hot-unplug
+**What does not yet**: the A57 cores above 1.2 GHz
 ([ROADMAP.md](https://github.com/elkir0/bnuuyloader/blob/main/t715/docs/ROADMAP.md), Milestone 4); the modem with a SIM; the camera's user space. One red
 pixel on the boot screen, below the picture ([SPLASH.md](SPLASH.md), section 6). And everything
 is one tablet's: another unit, another firmware, and the whole method has to be made again.

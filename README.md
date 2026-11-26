@@ -31,7 +31,7 @@ logo covers the whole panel. The picture is the owner's.*
 | **A boot screen** | the forged logo is the first thing the tablet shows. |
 | **A way back** | a failed attempt costs the next two boots; a lost loader is put back by the rescue, by itself. |
 | **A whole port, told** | the loader, the kernel, the tools, and eleven documents on what was measured, what broke, how it was fixed, and how to do it again. |
-| **A turnkey install** | since omarchy-tab-s2 2.0.0: an installer flashed once builds the loader on the tablet from its own PARAM ([t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1). One tablet tried; another firmware is refused. |
+| **A turnkey install** | since omarchy-tab-s2 2.0.0, and in its current release, 2.1.0: an installer flashed once builds the loader on the tablet from its own PARAM ([t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1). One tablet tried; another firmware is refused. |
 
 None of it would exist without bnuuy's work. The idea of entering through the boot logo, the
 principle of the entry, and the monitor call that makes 64 bits possible are bnuuyloader's:
@@ -45,7 +45,7 @@ what was added, and [CREDITS.md](CREDITS.md) who made what.
 | **The loader** | runs inside the bootloader at every boot, reads a kernel through the bootloader's own storage reader, checks its hashes, and starts it in 64 bits, with the eight cores | `t715/loader/`; [t715/README.md](t715/README.md) |
 | **The boot screen** | a picture on the whole panel, drawn by the bootloader itself, and the tool that makes a logo from any picture | `t715/loader/art/`; [t715/docs/SPLASH.md](t715/docs/SPLASH.md) |
 | **The rescue** | a small system for BOOT and RECOVERY that puts the loader known to work back when PARAM holds none | `t715/rescue/`; [t715/docs/RESCUE.md](t715/docs/RESCUE.md) |
-| **The kernel, in 64 bits** | nine patches on Linux 6.12.114: time without the stopped counter, the eight cores without PSCI, the board; the daily kernel's configuration and its build | `t715/kernel/`; `t715/build-arm64.sh` |
+| **The kernel, in 64 bits** | ten patches on Linux 6.12.114: time without the stopped counter, the eight cores without PSCI, the board, hot-unplug and suspend to RAM; the daily kernel's configuration and its build | `t715/kernel/`; `t715/build-arm64.sh` |
 | **The Omarchy image** | not here: it is the system brick, in [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2), under [arm64/](https://github.com/elkir0/omarchy-tab-s2/tree/main/arm64): its build, its packages, the health check of a running tablet, and [everything about the image](https://github.com/elkir0/omarchy-tab-s2/blob/main/arm64/docs/ROOTFS.md). This fork carried a first copy of its recipes in release 0.9.0 | [omarchy-tab-s2's arm64/](https://github.com/elkir0/omarchy-tab-s2/tree/main/arm64) |
 | **The tools** | the installer (the kernel's slots, the root, the loader), the test cycle job, the readers of the bootloader's log | `t715/tools/`; `t715/loader/scripts/` |
 | **The documentation** | the findings, with addresses and register values; the loader cycle by cycle; the eight cores; the kernel configuration; the roadmap | `t715/docs/` |
@@ -53,7 +53,7 @@ what was added, and [CREDITS.md](CREDITS.md) who made what.
 
 ## What works today
 
-State on 2026-11-25. Tested on one tablet: bootloader `T715XXU2CRH1`, hardware revision 9.
+State on 2026-11-26. Tested on one tablet: bootloader `T715XXU2CRH1`, hardware revision 9.
 
 | What | State |
 |---|---|
@@ -63,9 +63,10 @@ State on 2026-11-25. Tested on one tablet: bootloader `T715XXU2CRH1`, hardware r
 | The boot screen: S-Boot's own logo carrying a picture on the whole panel | works since 2026-11-25 ([t715/docs/SPLASH.md](t715/docs/SPLASH.md)) |
 | Linux 6.12.114 arm64, read from a slot of the CACHE partition, hashed, started at EL1 | works, with its eight cores |
 | Omarchy 4.5 on arm64 as the tablet's daily system | user space in about 13 s; a soak of three hours with eight busy cores |
+| Suspend to RAM and hot-unplug on arm64, without PSCI | since 2026-11-26, the kernel of omarchy-tab-s2 2.1.0: five real sleeps out of five, with the modem and the Wi-Fi chip powered down first ([t715/kernel/README.md](t715/kernel/README.md)) |
 | The way back after a failed attempt | seen on the tablet: the loader hands the next two boots to the rescue in BOOT, then arm64 is tried again |
 | The rescue ([t715/docs/RESCUE.md](t715/docs/RESCUE.md)) | in BOOT and RECOVERY; seen once putting a lost loader back by itself: arm64 again 35 s after the restart |
-| A turnkey install (download, flash, it installs) | omarchy-tab-s2 2.0.0's installer: [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1 |
+| A turnkey install (download, flash, it installs) | omarchy-tab-s2 2.1.0's installer (since 2.0.0): [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1 |
 | Another unit, another firmware | not tried |
 
 What was found about this tablet's S-Boot and about arm64 Linux on it is written up in
@@ -76,7 +77,7 @@ order, with a way back at every step: [`t715/docs/GO-ARM64.md`](t715/docs/GO-ARM
 ## Two ways to use it
 
 - **The short route: download, flash, it installs.** [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2)'s
-  release 2.0.0 brings the arm64 image and an installer flashed once with Odin or Heimdall. The
+  release 2.1.0 brings the arm64 image and an installer flashed once with Odin or Heimdall. The
   loader cannot be shipped as a file: it lives in PARAM, which is Samsung's firmware holding each
   tablet's own data, so the installer builds it on the tablet from the tablet's own PARAM, and
   checks it against the sha256 of this loader before writing it:
@@ -140,7 +141,7 @@ every day. On top of upstream's 24 files, the fork holds 529: about 67,000 lines
 | After a failed boot | a halt | the tablet's own kernel at the next boots |
 | The other cores | "legacy SMC calls": they start in ARM32 and must be switched | an enable-method of the kernel's own: each core switches itself (the same monitor call) |
 | Screen | 1440 x 2560 | 1536 x 2048; same framebuffer base, same display registers |
-| Beyond the loader | | a boot screen, a rescue, nine kernel patches with the daily kernel's configuration, the recipes of an Omarchy image, the tools, twelve documents |
+| Beyond the loader | | a boot screen, a rescue, ten kernel patches with the daily kernel's configuration, the recipes of an Omarchy image, the tools, twelve documents |
 
 ## Releases
 
@@ -158,7 +159,7 @@ arm64 image comes with the system brick, [omarchy-tab-s2](https://github.com/elk
 | `t715/README.md` | the Tab S2 loader: how it works, how to work with it | this fork |
 | `t715/loader/` | the loader's sources: `scripts/`, `stage2/`, `el1/`, `art/` (the owner's boot screen and its preview), and the ring reader `tools/seclog_dump/` | this fork |
 | `t715/rescue/` | the rescue: in omarchy-tab-s2's `main` since 2026-11-25; here as a patch for a clone at 1.0.5, with its instructions | this fork |
-| `t715/kernel/` | `patches/`: the nine kernel patches; `README.md`; `test-kernel/`: the first test kernel; `smp/`: the eight-core method as a patch series; `config/`: the daily kernel's configuration and build notes | this fork |
+| `t715/kernel/` | `patches/`: the ten kernel patches; `README.md`; `test-kernel/`: the first test kernel; `smp/`: the eight-core method as a patch series; `config/`: the daily kernel's configuration and build notes | this fork |
 | `t715/docs/` | `GO-ARM64.md`, `SPLASH.md`, `RESCUE.md`, `FINDINGS.md`, `PRODUCTION-LOADER.md`, `SMP-DESIGN.md`, `SMP-EXPERIMENT.md`, `SMP-MONITOR.md`, `CPUFREQ-THERMAL.md`, `KERNEL-CONFIG.md`, `ROADMAP.md` | this fork |
 | `t715/tools/`, `t715/build-arm64.sh` | the installer, the kernel build | this fork |
 | the aarch64 Omarchy root image, the health check, their tests | in [omarchy-tab-s2's arm64/](https://github.com/elkir0/omarchy-tab-s2/tree/main/arm64) since 2026-11-25 (in `t715/rootfs/` here until then, release 0.9.0) | omarchy-tab-s2 |

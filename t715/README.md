@@ -22,7 +22,7 @@ The details, with addresses and register values, are in [docs/FINDINGS.md](docs/
 loader of the daily boot is told cycle by cycle in [docs/PRODUCTION-LOADER.md](docs/PRODUCTION-LOADER.md).
 To pass a tablet from the 32-bit system to arm64, in order: [docs/GO-ARM64.md](docs/GO-ARM64.md).
 
-## 1. State on 2026-11-25
+## 1. State on 2026-11-26
 
 For developers. Tested on one tablet: bootloader `T715XXU2CRH1`, hardware revision 9.
 
@@ -36,7 +36,7 @@ For developers. Tested on one tablet: bootloader `T715XXU2CRH1`, hardware revisi
 | The way back after a failed attempt | seen on the tablet twice over: with the 32-bit system in BOOT (it came back by itself, with nobody at the tablet), then with the rescue in BOOT ([docs/RESCUE.md](docs/RESCUE.md)): two boots handed to it, then arm64 tried again |
 | A loader lost in PARAM, put back by the rescue | seen once: back under arm64 35 s after the restart |
 | A boot by the power key with the loader in PARAM | seen once: arm64, marked up |
-| A turnkey install (download, flash, it installs) | omarchy-tab-s2 2.0.0's installer: [docs/GO-ARM64.md](docs/GO-ARM64.md), section 1 |
+| A turnkey install (download, flash, it installs) | omarchy-tab-s2 2.1.0's installer (since 2.0.0): [docs/GO-ARM64.md](docs/GO-ARM64.md), section 1 |
 | Another unit, another firmware | not tried |
 
 That tablet runs Omarchy 4.5 on arm64 as its daily system: user space in about 13 s, a soak of
@@ -465,7 +465,8 @@ The story of the logo is in [docs/SPLASH.md](docs/SPLASH.md).
 - **What died in the first boot of the full 17 MB kernel** (`kboot5`): something between the ARM32
   code's first reads and stage 2. `kboot6` makes the tablet come back after it; it does not explain
   it.
-- **A suspend to RAM, and the A57 above 1.2 GHz, on arm64.** Open in the fork's roadmap.
+- **The A57 above 1.2 GHz on arm64.** Open in the fork's roadmap. Suspend to RAM, listed here until
+  2026-11-26, works on arm64 since then ([kernel/README.md](kernel/README.md)).
 - **RECOVERY with the rescue's image.** Written and read back, never booted: it cannot be tried by
   keys while a loader is in PARAM ([docs/RESCUE.md](docs/RESCUE.md), section 8).
 

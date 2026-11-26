@@ -20,6 +20,23 @@ firmware and one tablet's data), and the arm64 image comes with the system brick
   tablet's own PARAM (the archive's `logo.jpg` replaced by the loader's), written only if its
   sha256 is the loader's. [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1, tells how;
   the code is omarchy-tab-s2's `boot/initramfs/init` (`t715.golden`) and `boot/golden/`.
+- **Suspend to RAM and hot-unplug on arm64: the kernel of omarchy-tab-s2 2.1.0 (2026-11-26).** A
+  tenth patch, `0010`, with no PSCI: a core goes down through the secure monitor's shutdown call,
+  made from AArch64; the tablet sleeps through the monitor's sleep call, with the 32-bit kernel's
+  PMU and clock programming unchanged; on a wake-up a second AArch32 stub switches the boot CPU to
+  AArch64 again and resumes the kernel. On the tablet: all seven secondaries down and back, four
+  rounds; five real sleeps out of five, with the modem's processor and the Wi-Fi/Bluetooth chip
+  powered down first. The kernel is `6.12.114-00106-gd30e37ad41ab`, with
+  `CONFIG_ARM64_EXYNOS5433_SUSPEND`, and with `CONFIG_COMPAT` for Waydroid's arm64 Android image,
+  which runs 32-bit services and apps; the daily arguments carry `exynos5433_sleep=dryrun`, and
+  the root arms each sleep. (`t715/kernel/`, `t715/build-arm64.sh`;
+  [t715/kernel/README.md](t715/kernel/README.md); [FINDINGS.md](t715/docs/FINDINGS.md), section 23)
+- **The secure monitor, read.** [SMP-MONITOR.md](t715/docs/SMP-MONITOR.md) has its missing
+  sections: how the monitor dispatches a call from AArch64, its `0x82000400`, shutdown and sleep
+  handlers, how a core and the SoC come back after a power-down, harmless probe calls, and what
+  must never be done (unplug the boot CPU, call `0x82000401`). Two readings of earlier pages are
+  corrected: `HCR_EL2` = 2 at the EL2 entry is bit 1, not RW, and `CPTR_EL2` `0x33FF` traps
+  nothing.
 
 ## 0.9.0, pre-release (2026-11-25)
 

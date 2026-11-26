@@ -1,6 +1,8 @@
 # Roadmap of the arm64 Omarchy for the SM-T715
 
-Updated 2026-11-25 (first written 2026-11-24), at the owner's request: the move to Omarchy 4.5.
+Updated 2026-11-26, for omarchy-tab-s2 2.1.0: suspend to RAM and hot-unplug on arm64, and the
+kernel's side of Android apps. First written 2026-11-24; updated 2026-11-25, at the owner's request,
+for the move to Omarchy 4.5.
 The arm64 system replaces the 32-bit one (owner's decision, 2026-11-24). The 32-bit project,
 `omarchy-tab-s2`, has its own roadmap, `omarchy-tab-s2/docs/ROADMAP.md`.
 
@@ -105,13 +107,21 @@ Legend: **done** (proven on the tablet), **built** (works on the Mac, not run on
 
 ## Milestone 4: what the 32-bit port had and arm64 does not yet
 
-| function | why | work |
-|---|---|---|
-| suspend to RAM | the 32-bit code (`EXYNOS_CPU_SUSPEND`, `exynos5433_sleep`) is ARM32 machine code | write an arm64 suspend path without PSCI (the secondaries' power-down, the boot CPU's resume through the loader's EL2 entry) |
-| LTE modem, calls, SMS | `SEC_MODEM_V1` depends on ARM | port the driver to arm64 |
-| A57 above 1.2 GHz | stage 2 of `CPUFREQ.md` not run on arm64 | the same protocol, owner present |
-| Android apps | the 32-bit Waydroid image cannot run (no COMPAT) | a 64-bit Waydroid image |
-| A57 hot-unplug | ARM32 code | an arm64 `cpu_die` for the method |
+| function | why | work | state |
+|---|---|---|---|
+| suspend to RAM | the 32-bit code (`EXYNOS_CPU_SUSPEND`, `exynos5433_sleep`) is ARM32 machine code | an arm64 suspend path without PSCI: the secondaries down through the monitor's shutdown call, the 32-bit kernel's PMU programming, the monitor's sleep call from AArch64, the boot CPU's way back through a second AArch32 stub and `SMC 0x82000400` (../kernel/patches/0010) | **done** (2026-11-26, omarchy-tab-s2 2.1.0): five real sleeps out of five, with the modem's CP and the Wi-Fi/Bluetooth chip powered down first by the root's `t715-sleep`; four woke on the RTC alarm, one on the power key after 165 s on battery (../docs/FINDINGS.md, section 23) |
+| LTE modem, calls, SMS | `SEC_MODEM_V1` depends on ARM | port the driver to arm64 | the driver and the CP: **done** (../kernel/patches/0009, Milestone 3); calls and SMS: **open**, they need a SIM |
+| A57 above 1.2 GHz | stage 2 of `CPUFREQ.md` not run on arm64 | the same protocol, owner present | **open** |
+| Android apps | the 32-bit Waydroid image cannot run (no COMPAT) | Waydroid's arm64 Android image; it runs 32-bit services (`boringssl_self_test32`, `zygote64_32`) and 32-bit apps, so the kernel needs `COMPAT` | **done** (2026-11-26, omarchy-tab-s2 2.1.0): `COMPAT` is on in the kernel; Waydroid is in omarchy-tab-s2's image |
+| A57 hot-unplug | ARM32 code | an arm64 `cpu_die` for the method | in the kernel: **done** (2026-11-26, ../kernel/patches/0010: CPU7, the A57 cluster, then all seven secondaries down and back, four rounds; by hand once `/sys/module/smp_exynos5433/parameters/hotplug` is 1). The A57 offline while the screen is dark, as on 32 bits: **open** (the image's `t715-keys` leaves it off on arm64) |
+
+What the sleep leaves open:
+
+- A sleep with the Wi-Fi/Bluetooth chip left powered: the first try never resumed, the board reset
+  and S-Boot booted BOOT. The root powers the chip down before each sleep. **open**.
+- The power the tablet draws asleep on arm64, against the 32-bit port's. **open**.
+- A secondary's power-down as an idle state (cpuidle): `c2test` shows the way back works (CPU1 down
+  in 73 us, back 81 us after power-on), and no idle driver uses it. **open**.
 
 ## Milestone 5: a release
 
@@ -123,7 +133,7 @@ Legend: **done** (proven on the tablet), **built** (works on the Mac, not run on
   installer reads the ASV fuse word, logs it and says on screen when it is not the reference
   chip's; the tables do not follow it yet. **open**.
 
-## State on 2026-11-25
+## State on 2026-11-26
 
 **Proven on the tablet.** Milestones 0 to 2 are done: the loader in PARAM starts the full arm64
 kernel, and since 2026-11-25 the tablet boots Omarchy 4.5.0-3 on arm64 by itself, at every boot,
@@ -132,7 +142,8 @@ from the persistent root `USERDATA/omarchy-arm64`. In Milestone 3, the lines mar
 way back without the 32-bit system, the `t715-keys` fix, the modem's CP up and the modem in the
 shell, the ledger across a watchdog reset. Display, touch, GPU, Wi-Fi,
 Bluetooth, sound, sensors, battery and charger, and the microSD card are there as far as the health
-check sees.
+check sees. In Milestone 4, on 2026-11-26 (omarchy-tab-s2 2.1.0): suspend to RAM, hot-unplug in the
+kernel, and the kernel's `COMPAT` for Android apps.
 
 **Built or rehearsed only.** No line above is marked **built**. Rehearsed on the Mac before the
 tablet: the loader's 27 cases, the modem driver's 76 host vectors, `t715-modem`'s suite in
@@ -145,5 +156,6 @@ device's own modem files, and one that carries the time zone and language over; 
 charger (it needs the owner's charger); the first Panfrost → exynos-drm imports; an on-tablet way to
 boot BOOT's system once; pstore archiving; the user's
 password for a root installed by hand; the camera userspace; `schedutil` under real use, idle power
-and the battery heat guard. Milestone 4: suspend to RAM, A57 above 1.2 GHz, Android apps, A57
-hot-unplug. Milestone 5: the cpufreq tables following the chip's fuses.
+and the battery heat guard. Milestone 4: the A57 above 1.2 GHz; the A57 offline while the screen is
+dark; calls and SMS (a SIM); a sleep with the Wi-Fi chip left up; the power drawn asleep; cpuidle.
+Milestone 5: the cpufreq tables following the chip's fuses.

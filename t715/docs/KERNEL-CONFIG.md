@@ -2,7 +2,7 @@
 
 Release 1.0.5 of the owner's kernel, translated from arm32 to arm64, built, with its device tree.
 Kernel configuration study, 2026-11-24. **Nothing described here was run on the tablet.** The
-state on 2026-11-25 is in the last section.
+state on 2026-11-26 is in the last section.
 
 ## Summary
 
@@ -106,8 +106,10 @@ The commit is intact; only the working tree is affected. Consequences, all met:
    again. Final: **1369 built in, 69 modules**, sha256 `ca1c3724…`.
 3. The script checks the final configuration symbol by symbol: every option the release builds
    has the same value unless it is in the gone list; everything arm64 adds is in the new list;
-   and the port's fixed points hold (page size, address sizes, `COMPILE_TEST` and `COMPAT` off,
-   no debug information, no built-in initramfs, …). An unexplained difference stops the build.
+   and the port's fixed points hold (page size, address sizes, `COMPILE_TEST` off, and `COMPAT`
+   until 2.1.0, no debug information, no built-in initramfs, …). An unexplained difference stops
+   the build. Since 2.1.0 a symbol of the gone list that our lines build again is accepted, and
+   named in the build's log: `COMPAT` brings some of the release's back.
 4. `config-report.md` is written from that: changed by us, gone, unchanged, new, values.
 
 To find out why a symbol is missing, two independent means were used and must agree: the Kconfig
@@ -174,6 +176,10 @@ which has no RAM log console.
 **4. `COMPAT` off**, as decided (the result says so explicitly). Consequence: no 32-bit userland.
 The release's 3 GiB/1 GiB split that lets 32-bit Android run in Waydroid is 32-bit only; on
 arm64 only a 64-bit Android image could run.
+
+Reversed on 2026-11-26, for omarchy-tab-s2 2.1.0: `CONFIG_COMPAT=y` in
+`../kernel/config/config-arm64.local`. Waydroid's arm64 Android image is not 64-bit only: it runs
+32-bit services (`boringssl_self_test32`, `zygote64_32`) and 32-bit apps.
 
 **5. Left at the arm64 default**, as decided: 4 KiB pages; `SMP` (`def_bool y`, `nosmp` on the
 command line). `NR_CPUS=8`, `HZ=250`, `PANIC_TIMEOUT=5` and `INITRAMFS_SOURCE=""` come from the
@@ -355,10 +361,10 @@ The 25 biggest symbols of `vmlinux`:
 | Function | Why | State |
 |---|---|---|
 | The other seven cores | the 32-bit port starts them with `arch/arm/mach-exynos/platsmp.c` (boot address in sysram through the `samsung,secure-firmware` window, PMU power-up) and `firmware.c` (`SMC_CMD_CPU1BOOT` to the monitor), and manages clusters with `EXYNOS_MCPM` and `ARM_CCI400_PORT_CTRL`: all `arch/arm/`. The arm64 side selects only the clock, power domain, PMU and pinctrl drivers. The device tree gives arm64 nothing: no `enable-method`, no `psci` | **Lost** here; the eight-core method is the subject of `SMP-DESIGN.md` and `SMP-EXPERIMENT.md`. Until then `nosmp` or not, one core |
-| Suspend to RAM | `EXYNOS_CPU_SUSPEND` is 32-bit machine code; `exynos5433_sleep=dryrun` in the built-in command line is meaningless on arm64 | **Lost** |
+| Suspend to RAM | `EXYNOS_CPU_SUSPEND` is 32-bit machine code; `exynos5433_sleep=dryrun` in the built-in command line is meaningless on arm64 | **Lost**, then back on 2026-11-26: patch 0010 (`ARM64_EXYNOS5433_SUSPEND`), with `exynos5433_sleep=dryrun` in the device tree's arguments (`../kernel/README.md`) |
 | The LTE modem (SS333) | `SEC_MODEM_V1` says `depends on ARM` (a module in the release). Its link driver `MIPI_LLI` is still built, with nothing to use it | **Lost** until the driver is ported. Separate work |
-| Hot-unplug of the A57 cluster | 32-bit machine code: `arch/arm/mach-exynos/platsmp.c` and `firmware.c` (`SMC_CMD_SHUTDOWN`) | **Lost** with the secondary cores |
-| 32-bit userland, 32-bit Android in Waydroid | `COMPAT` off (as decided) | Only a 64-bit Android image could run; untested |
+| Hot-unplug of the A57 cluster | 32-bit machine code: `arch/arm/mach-exynos/platsmp.c` and `firmware.c` (`SMC_CMD_SHUTDOWN`) | **Lost** with the secondary cores, then back on 2026-11-26: patch 0010, the monitor's shutdown call from AArch64 (`FINDINGS.md`, section 23) |
+| 32-bit userland, 32-bit Android in Waydroid | `COMPAT` off (as decided) | Only a 64-bit Android image could run; `COMPAT` is on since 2.1.0, for Waydroid's arm64 image and its 32-bit services and apps |
 
 ### 7.2 The modules, and what loads them
 
@@ -511,7 +517,7 @@ driver was run; the RAM log, the watchdog, the restart, the PM domains, the regu
 display, the GPU, the radios, the sensors are untested on arm64 with this configuration, as is
 the MCT patch with a kernel of this size.
 
-## State on 2026-11-25
+## State on 2026-11-26
 
 **Proven on the tablet.** The full kernel booted on the tablet with a root image on 2026-11-25: the
 release configuration translated to arm64, with the eight-core method (`samsung,exynos5433-el2`, no
@@ -525,17 +531,18 @@ With the System MMUs disabled in the board tree (`../kernel/patches/0008`) and `
 boot screen shows the splash from 4.7 to 8.6 s. A soak of several hours with twelve 3-min phases of
 eight busy cores ended without a reboot: atlas peak 94 °C, cooling to 0.9/1.0 GHz. The modem's CP
 comes up at every boot, ONLINE in 9.9 s after `KBOOT: up` (`sec_modem_v1` built for arm64,
-`../kernel/patches/0009`).
+`../kernel/patches/0009`). On 2026-11-26, the kernel of omarchy-tab-s2 2.1.0
+(`6.12.114-00106-gd30e37ad41ab`: `../kernel/patches/0010`, `ARM64_EXYNOS5433_SUSPEND` and `COMPAT`):
+the seven secondaries down and back, four rounds, and five real sleeps out of five
+(`FINDINGS.md`, section 23).
 
 **Built or rehearsed only.** The health check is not use: touch gestures, rotation, sound out,
 Bluetooth pairing and the camera have not been tried by a hand. The modem tools built for aarch64
 (`t715-mobile`, omaphone, omamessages) have not run with a SIM: there is none in the tablet.
 
-**Open.** Suspend to RAM (an arm64 suspend path without PSCI); hot-unplug of the A57 cluster (an
-arm64 `cpu_die` for the method); the A57 above 1.2 GHz (stage 2; `CPUFREQ-THERMAL.md`); Android
-apps (a 64-bit Waydroid image; `COMPAT` is off); the modem with a SIM (registration, mobile data,
-SMS, calls with audio); about 4 s of text before the splash (an initramfs `t715.quiet`, at the next
-kernel build); the compositor's first Panfrost → exynos-drm imports, which fail on non-contiguous
+**Open.** The A57 above 1.2 GHz (stage 2; `CPUFREQ-THERMAL.md`); the modem with a SIM
+(registration, mobile data, SMS, calls with audio); about 4 s of text before the splash (an
+initramfs `t715.quiet`, at the next kernel build); the compositor's first Panfrost → exynos-drm imports, which fail on non-contiguous
 buffers (78 errors in the session's first 40 s) before it falls back; a fresh root's first boot,
 which has no Wi-Fi; pstore records, not archived at boot (systemd-pstore is off); `schedutil` under
 real use; idle power.
