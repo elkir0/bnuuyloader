@@ -31,7 +31,7 @@ logo covers the whole panel. The picture is the owner's.*
 | **A boot screen** | the forged logo is the first thing the tablet shows. |
 | **A way back** | a failed attempt costs the next two boots; a lost loader is put back by the rescue, by itself. |
 | **A whole port, told** | the loader, the kernel, the tools, and eleven documents on what was measured, what broke, how it was fixed, and how to do it again. |
-| **Not for everyone yet** | one tablet tried; no turnkey install; another unit or another firmware means doing the method again. |
+| **A turnkey install** | since omarchy-tab-s2 2.0.0: an installer flashed once builds the loader on the tablet from its own PARAM ([t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1). One tablet tried; another firmware is refused. |
 
 None of it would exist without bnuuy's work. The idea of entering through the boot logo, the
 principle of the entry, and the monitor call that makes 64 bits possible are bnuuyloader's:
@@ -65,7 +65,7 @@ State on 2026-11-25. Tested on one tablet: bootloader `T715XXU2CRH1`, hardware r
 | Omarchy 4.5 on arm64 as the tablet's daily system | user space in about 13 s; a soak of three hours with eight busy cores |
 | The way back after a failed attempt | seen on the tablet: the loader hands the next two boots to the rescue in BOOT, then arm64 is tried again |
 | The rescue ([t715/docs/RESCUE.md](t715/docs/RESCUE.md)) | in BOOT and RECOVERY; seen once putting a lost loader back by itself: arm64 again 35 s after the restart |
-| A turnkey install (download, flash, boot) | not yet: [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1 |
+| A turnkey install (download, flash, it installs) | omarchy-tab-s2 2.0.0's installer: [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1 |
 | Another unit, another firmware | not tried |
 
 What was found about this tablet's S-Boot and about arm64 Linux on it is written up in
@@ -75,14 +75,13 @@ order, with a way back at every step: [`t715/docs/GO-ARM64.md`](t715/docs/GO-ARM
 
 ## Two ways to use it
 
-- **The short route: download, flash, boot. Not open yet.** No arm64 image is released for this
-  tablet, and there is no installer. The loader cannot be shipped as a file: it lives in PARAM,
-  which is Samsung's firmware holding each tablet's own data, so it is built from the tablet's own
-  PARAM. What the short route will be, and what it still lacks:
-  [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1. Today the turnkey release of
-  [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2) installs the 32-bit Omarchy, and
-  nothing of it has to be undone to go to 64 bits afterwards.
-- **The long route, for power users: it works today.** From the 32-bit system, with a computer and
+- **The short route: download, flash, it installs.** [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2)'s
+  release 2.0.0 brings the arm64 image and an installer flashed once with Odin or Heimdall. The
+  loader cannot be shipped as a file: it lives in PARAM, which is Samsung's firmware holding each
+  tablet's own data, so the installer builds it on the tablet from the tablet's own PARAM, and
+  checks it against the sha256 of this loader before writing it:
+  [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1.
+- **The long route, for power users.** From the 32-bit system, with a computer and
   the USB cable: read the tablet's own dumps, build the loader, rehearse it, build the kernel and
   the image, and install in an order that keeps a way back at every step. The map is in
   [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 2; each step links to the page that

@@ -14,6 +14,12 @@ firmware and one tablet's data), and the arm64 image comes with the system brick
   release: omarchy-mobile's head with the modem's interface, dictation rebuilt for the tablet's
   ARMv8.0 CPU, a first-run onboarding with the AI apps). This fork keeps the boot: the loader,
   the kernel, the rescue, the installer, the findings. The guide's links follow.
+- **The short route is open: omarchy-tab-s2 2.0.0.** Its installer, flashed once to BOOT and
+  RECOVERY, does on the tablet what route 2 does from a computer: it copies the arm64 image into
+  USERDATA, writes the kernel's slot to CACHE, and builds this fork's loader `kboot7-cas3` from the
+  tablet's own PARAM (the archive's `logo.jpg` replaced by the loader's), written only if its
+  sha256 is the loader's. [t715/docs/GO-ARM64.md](t715/docs/GO-ARM64.md), section 1, tells how;
+  the code is omarchy-tab-s2's `boot/initramfs/init` (`t715.golden`) and `boot/golden/`.
 
 ## 0.9.0, pre-release (2026-11-25)
 

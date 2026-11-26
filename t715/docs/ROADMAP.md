@@ -91,9 +91,12 @@ Legend: **done** (proven on the tablet), **built** (works on the Mac, not run on
 - An on-tablet way to boot BOOT's system once (today only `t715-arm64-install unloader`, from the
   computer, for good). **open**.
 - A fresh root's first boot has no Wi-Fi (the NVRAM is copied from SYSTEM after brcmfmac probed, and
-  brcmfmac cannot be reloaded): copy it in the initramfs, or seed it into the image at install. **open**.
+  brcmfmac cannot be reloaded): copy it in the initramfs, or seed it into the image at install.
+  **done** by omarchy-tab-s2 2.0.0's installer, which copies the NVRAM and the Bluetooth patch RAM
+  from SYSTEM into the root it installs.
 - pstore: archive the records at boot (systemd-pstore is off; ramoops survives warm resets). **open**.
-- The user `alarm`'s password is the build's placeholder `changeme`: the owner sets their own. **open**.
+- The user `alarm`'s password is the build's placeholder `changeme`: the owner sets their own.
+  **done** for a fresh install: omarchy-tab-s2's first-run setup asks for the user's own.
 - Camera on arm64: the mode tables are on the tablet (copied from the 32-bit root, 2026-11-25); the
   userspace (omacam, libcamera as on the 32-bit image) is not in the arm64 image. **open**.
 - The image's time zone and language are UTC and `en_US` by default; the tablet has had the owner's
@@ -114,9 +117,11 @@ Legend: **done** (proven on the tablet), **built** (works on the Mac, not run on
 
 - An installer that builds the forged PARAM from each tablet's own PARAM (no PARAM image can be
   distributed: it holds the device's data and Samsung's), writes the slots and the root. Its own
-  image goes to BOOT and RECOVERY and is the way back (the rescue, ../docs/RESCUE.md): no 32-bit
-  system is needed. What the short route has and lacks, piece by piece: ../docs/GO-ARM64.md.
-- A fuse check before the cpufreq tables are used (they are this chip's: ASV group 1).
+  image goes to BOOT and RECOVERY and is the way back: no 32-bit system is needed. **done**:
+  omarchy-tab-s2 2.0.0 (`boot/initramfs/init`, `t715.golden`; ../docs/GO-ARM64.md, section 1).
+- A fuse check before the cpufreq tables are used (they are this chip's: ASV group 1). The
+  installer reads the ASV fuse word, logs it and says on screen when it is not the reference
+  chip's; the tables do not follow it yet. **open**.
 
 ## State on 2026-11-25
 
@@ -138,7 +143,7 @@ Bluetooth pairing, the camera.
 at the next kernel build); the modem with a SIM (it needs the owner's SIM); an installer for the
 device's own modem files, and one that carries the time zone and language over; charging on a wall
 charger (it needs the owner's charger); the first Panfrost → exynos-drm imports; an on-tablet way to
-boot BOOT's system once; a fresh root's first boot without Wi-Fi; pstore archiving; the user's
-password; the camera userspace; `schedutil` under real use, idle power and the battery heat guard.
-Milestone 4: suspend to RAM, A57 above 1.2 GHz, Android apps, A57 hot-unplug. Milestone 5: the
-installer, and a fuse check before the cpufreq tables are used.
+boot BOOT's system once; pstore archiving; the user's
+password for a root installed by hand; the camera userspace; `schedutil` under real use, idle power
+and the battery heat guard. Milestone 4: suspend to RAM, A57 above 1.2 GHz, Android apps, A57
+hot-unplug. Milestone 5: the cpufreq tables following the chip's fuses.
