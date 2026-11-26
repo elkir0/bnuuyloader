@@ -4,3 +4,7 @@
 CONFIG_ARM64_EXYNOS5433_SMP=y
 CONFIG_INITRAMFS_SOURCE="/work/initramfs-root /work/initramfs-extra.list"
 CONFIG_INITRAMFS_COMPRESSION_GZIP=y
+# 2.1.0 (2026-11-26): suspend to RAM without PSCI (patch 0010).
+CONFIG_ARM64_EXYNOS5433_SUSPEND=y
+# 2.1.0: 32-bit user space (AArch32 EL0), for Waydroid's arm64 image, which runs 32-bit services (boringssl_self_test32, zygote64_32) and 32-bit apps.
+CONFIG_COMPAT=y

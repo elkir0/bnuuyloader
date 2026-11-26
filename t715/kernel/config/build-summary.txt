@@ -1,11 +1,11 @@
-commit:          96a2510ad4862c42766ce73d108688f8a8714c2e on t715-arm64, tree clean; built through a view of the clone (13 paths from the commit)
-kernel release:  6.12.114-00105-g96a2510ad486
-configuration:   04af2f942e69bb8f9747cd288c84187178e9c513f0406417659bd2c0420b1a8f  .config (1371 built in, 70 modules)
-Image:           17424400 bytes (16 MiB 632 KiB), sha256 5ce33d24ba9eb0b4d9bc5a18ece403860be5ce48a1a46fe989c0c0935bc34761
-                 footprint in memory (image_size, .bss included): 17891328 bytes; magic at 0x38: ARMd (ARM\x64 expected); first instruction: d503201f
+commit:          d30e37ad41ab976cf8688d40b7d6d522dca0dc64 on t715-arm64-sleep, tree clean; built through a view of the clone (13 paths from the commit)
+kernel release:  6.12.114-00106-gd30e37ad41ab
+configuration:   d2347fad1bcdb16247a64c814a885eca22ff5821552811e2bc7ee8a8c6602244  .config (1385 built in, 70 modules)
+Image:           17555472 bytes (16 MiB 760 KiB), sha256 36d9d88a9ffe0fb507ae56e553e2e522c59dbef1afefb84c64f77945e440c8de
+                 footprint in memory (image_size, .bss included): 18022400 bytes; magic at 0x38: ARMd (ARM\x64 expected); first instruction: d503201f
 device trees:    gts28ltexx-base.dtb 79115 bytes, gts28ltexx-bootargs.dtb 79347 bytes
-modules:         72 modules in lib/modules/6.12.114-00105-g96a2510ad486/, modules.tar.xz 1122892 bytes
+modules:         72 modules in lib/modules/6.12.114-00106-gd30e37ad41ab/, modules.tar.xz 1138520 bytes
 build:           0 warning lines, 0 error lines in build.log
 dtc:             3 warnings for the board dts and the overlay
-slot:            64 MiB = 4096 bytes of header + Image + one device tree: fits, 48361 KiB left
-identity:        #2 t715-arm64@port, Sat Nov 21 12:00:00 UTC 2026
+slot:            64 MiB = 4096 bytes of header + Image + one device tree: fits, 48233 KiB left
+identity:        #1 t715-arm64@port, Sat Nov 21 12:00:00 UTC 2026

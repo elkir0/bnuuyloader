@@ -7,7 +7,7 @@
     fragment@0 {
         target-path = "/chosen";
         __overlay__ {
-            bootargs = "console=sec_log sec_log=0x200000@0x26000000 console=tty0 quiet splash vt.global_cursor_default=0 printk.devkmsg=on clk_ignore_unused pd_ignore_unused panic=10 s3c2410_wdt.tmr_atboot=1 watchdog.handle_boot_enabled=1 watchdog.open_timeout=120 t715.persist=omarchy-arm64";
+            bootargs = "console=sec_log sec_log=0x200000@0x26000000 console=tty0 quiet splash vt.global_cursor_default=0 printk.devkmsg=on clk_ignore_unused pd_ignore_unused panic=10 s3c2410_wdt.tmr_atboot=1 watchdog.handle_boot_enabled=1 watchdog.open_timeout=120 t715.persist=omarchy-arm64 exynos5433_sleep=dryrun";
         };
     };
 };

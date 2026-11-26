@@ -245,8 +245,11 @@ errors, warnings = [], []
 # every symbol built by the release keeps its value, unless it is listed as gone
 for s in sorted(rel):
     if s in GONE:
-        if s in fin or s in plain:
+        if s in plain:
             errors.append("%s is listed as gone but is built (final %s, plain %s)" % (s, fin.get(s), plain.get(s)))
+        elif s in fin:
+            # gone from the plain translation, brought back by our own lines (COMPAT since 2.1.0)
+            print("%s: gone from the plain translation, built again by our lines (%s)" % (s, fin[s]))
     elif fin.get(s) != rel[s] or plain.get(s) != rel[s]:
         errors.append("%s: the release builds it %s, arm64 gives %s (plain %s) and it is in neither list" % (s, rel[s], fin.get(s, "n"), plain.get(s, "n")))
 # every symbol arm64 adds is listed
@@ -274,7 +277,8 @@ for s, (value, _) in NEW.items():
 # what must hold for this port
 MUST_Y = ["ARM64", "ARM64_4K_PAGES", "ARM64_VA_BITS_39", "ARM64_PA_BITS_48", "MODULES", "DEBUG_INFO_NONE", "ARCH_EXYNOS",
           "LOCALVERSION_AUTO", "S3C2410_WATCHDOG", "SAMSUNG_SEC_LOG_CONSOLE", "PSTORE_RAM", "EXYNOS_PM_DOMAINS"]
-MUST_N = ["COMPILE_TEST", "COMPAT", "ARM64_VA_BITS_52", "ARM64_PA_BITS_52", "ARM64_LPA2", "DEBUG_INFO_BTF", "KASAN",
+# COMPAT left the list in 2.1.0: Waydroid's arm64 image runs 32-bit services and apps.
+MUST_N = ["COMPILE_TEST", "ARM64_VA_BITS_52", "ARM64_PA_BITS_52", "ARM64_LPA2", "DEBUG_INFO_BTF", "KASAN",
           "RANDOMIZE_BASE", "KEXEC", "MODULE_SIG", "EXYNOS_IOMMU", "ARM64_16K_PAGES", "ARM64_64K_PAGES"]
 MUST_VAL = {"ARM64_VA_BITS": "39", "ARM64_PA_BITS": "48", "PGTABLE_LEVELS": "3", "NR_CPUS": "8", "HZ": "250",
             "PANIC_TIMEOUT": "5"}

@@ -1,0 +1,1255 @@
+From d30e37ad41ab976cf8688d40b7d6d522dca0dc64 Mon Sep 17 00:00:00 2001
+From: elkir0 <elkir0@users.noreply.github.com>
+Date: Thu, 26 Nov 2026 12:00:00 +0000
+Subject: [PATCH] arm64: exynos5433: CPU hot-unplug and suspend to RAM without
+ PSCI
+
+Hot-unplug: the 32-bit kernel's exynos5433_cpu_die() from AArch64 EL1:
+the HOTPLUG boot flag, the core's local power off in the PMU, then the
+monitor's SHUTDOWN call (x1: the core, or the cluster for its last core;
+x3 = 0). The monitor compares the id as w0 and takes the same path for
+an AArch64 caller; a core it powers back on starts again in AArch32 at
+sysram-ns + 0x1c, through the secondaries' stub. cpu_kill polls the PMU
+status (arm64's convention: 0 = dead). By hand it stays refused until
+/sys/module/smp_exynos5433/parameters/hotplug is 1; a system sleep may.
+On the SM-T715: CPU7, the A57 cluster, then all seven secondaries down
+to CPU0 alone and back, four rounds, no error.
+
+Suspend to RAM (suspend_exynos5433.c): the 32-bit kernel's PMU and
+clock programming unchanged, the monitor's SLEEP call from AArch64
+inside cpu_suspend(), and the way back through a second AArch32 stub,
+exynos5433_resume_entry, which BL2 jumps to on a wake-up: SMC
+0x82000400 to AArch64 EL2, EL2 set up as for a secondary, eret to
+cpu_resume at EL1. exynos5433_sleep=on|dryrun and the one-shot arm
+switch as on 32 bits. c2test powers one secondary down and back through
+the resume stub while the system runs.
+
+On the SM-T715, 2026-11-26: c2test on CPU1 returned 0 (down in 73 us,
+back 81 us after power-on); three dry runs; then real sleeps with the
+CP and the Wi-Fi/Bluetooth chip down: five of five woke (four on the
+PMIC RTC alarm, one on the power key after 165 s on battery, through
+the root's t715-sleep), eight cores, Wi-Fi, Bluetooth and the modem
+back. A first try with the Wi-Fi chip up never resumed: the board reset
+into BOOT.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/Kconfig                      |  15 +
+ arch/arm64/kernel/Makefile              |   1 +
+ arch/arm64/kernel/smp_exynos5433.c      | 285 +++++++++-
+ arch/arm64/kernel/smp_exynos5433_head.S |  98 +++-
+ arch/arm64/kernel/suspend_exynos5433.c  | 715 ++++++++++++++++++++++++
+ 5 files changed, 1078 insertions(+), 36 deletions(-)
+ create mode 100644 arch/arm64/kernel/suspend_exynos5433.c
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index e7cb92fa0..daee42eb2 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -2447,6 +2447,21 @@ config ARM64_EXYNOS5433_SMP
+ 	  enable-method = "samsung,exynos5433-el2". With "nosmp", or on a tree
+ 	  without that property, nothing of it runs.
+ 
++config ARM64_EXYNOS5433_SUSPEND
++	bool "Exynos 5433: suspend to RAM without PSCI"
++	depends on ARM64_EXYNOS5433_SMP && SUSPEND && HOTPLUG_CPU && CPU_PM
++	default y
++	help
++	  System sleep for a device whose signed bootloader offers no PSCI
++	  (Samsung Galaxy Tab S2 8.0 LTE, SM-T715): the secondary CPUs go
++	  down through the secure monitor's shutdown call, the PMU is set up
++	  as the vendor's 32-bit kernel sets it, and the monitor's sleep call
++	  puts the SoC to sleep. The way back is AArch32: a stub switches
++	  the boot CPU to AArch64 again and enters cpu_resume.
++
++	  Nothing is registered unless the command line has
++	  exynos5433_sleep=on or exynos5433_sleep=dryrun.
++
+ config CMDLINE
+ 	string "Default kernel command string"
+ 	default ""
+diff --git a/arch/arm64/kernel/Makefile b/arch/arm64/kernel/Makefile
+index aa7ab0791..624f6c695 100644
+--- a/arch/arm64/kernel/Makefile
++++ b/arch/arm64/kernel/Makefile
+@@ -58,6 +58,7 @@ obj-$(CONFIG_ACPI)			+= acpi.o
+ obj-$(CONFIG_ACPI_NUMA)			+= acpi_numa.o
+ obj-$(CONFIG_ARM64_ACPI_PARKING_PROTOCOL)	+= acpi_parking_protocol.o
+ obj-$(CONFIG_ARM64_EXYNOS5433_SMP)		+= smp_exynos5433.o smp_exynos5433_head.o
++obj-$(CONFIG_ARM64_EXYNOS5433_SUSPEND)	+= suspend_exynos5433.o
+ obj-$(CONFIG_PARAVIRT)			+= paravirt.o
+ obj-$(CONFIG_RANDOMIZE_BASE)		+= kaslr.o
+ obj-$(CONFIG_HIBERNATION)		+= hibernate.o hibernate-asm.o
+diff --git a/arch/arm64/kernel/smp_exynos5433.c b/arch/arm64/kernel/smp_exynos5433.c
+index 434f9e9b4..6feee79db 100644
+--- a/arch/arm64/kernel/smp_exynos5433.c
++++ b/arch/arm64/kernel/smp_exynos5433.c
+@@ -18,12 +18,19 @@
+  * No clock, no voltage and no power domain is touched here.
+  */
+ 
++#include <linux/arm-smccc.h>
+ #include <linux/delay.h>
+ #include <linux/io.h>
++#include <linux/moduleparam.h>
+ #include <linux/mutex.h>
+ #include <linux/of.h>
+ #include <linux/of_address.h>
++#include <linux/cpu.h>
++#include <linux/cpu_pm.h>
++#include <linux/ktime.h>
+ #include <linux/smp.h>
++#include <linux/stop_machine.h>
++#include <linux/suspend.h>
+ #include <linux/types.h>
+ #include <linux/soc/samsung/exynos-regs-pmu.h>
+ 
+@@ -31,6 +38,7 @@
+ #include <asm/cacheflush.h>
+ #include <asm/cpu_ops.h>
+ #include <asm/cputype.h>
++#include <asm/suspend.h>
+ 
+ extern char exynos5433_smp_entry[];		/* AArch32: what the boot register gets */
+ extern char exynos5433_smp_entry_el2[];	/* AArch64: what the monitor is given */
+@@ -474,17 +482,284 @@ static void exynos5433_cpu_postboot(void)
+ 	WRITE_ONCE(exynos5433_arrived, true);
+ }
+ 
++#ifdef CONFIG_HOTPLUG_CPU
+ /*
+- * No cpu_die: without it the kernel refuses to take a CPU offline
+- * (op_cpu_disable(), arch/arm64/kernel/smp.c), which is right here.  The
+- * monitor's shutdown call the 32-bit kernel makes from AArch32
+- * (exynos5433_cpu_die(), platsmp.c:822-875) has not been tried from
+- * AArch64.
++ * Hot-unplug: the 32-bit kernel's exynos5433_cpu_die() (platsmp.c:822-875,
++ * stock hotplug.c:99-153): the HOTPLUG boot flag, the core's local power
++ * off in the PMU, then the monitor's shutdown call, which cleans the
++ * caches, takes the core out of coherency and powers it off at its own WFI,
++ * with the cluster when no other core of the cluster is online.  Linux
++ * itself neither cleans nor leaves coherency, as in stock.  A core taken
++ * down this way comes back through exynos5433_cpu_boot(), like at boot.
++ *
++ * Here the call is made from AArch64 at EL1; the monitor takes it the same
++ * way (docs/arm64-monitor-smc.md of the port, §3), and a core it powers
++ * back on starts again in AArch32 at sysram-ns + 0x1c, like at boot.  By
++ * hand it stays refused until asked for at run time
++ * (/sys/module/smp_exynos5433/parameters/hotplug); a system sleep may.
++ */
++
++/* The monitor's ids (arch/arm/mach-exynos/smc.h), negative 32-bit values */
++#define EXYNOS5433_SMC_CMD_SHUTDOWN	(-7)
++#define EXYNOS5433_OP_TYPE_CORE		0
++#define EXYNOS5433_OP_TYPE_CLUSTER	1
++#define EXYNOS5433_SMC_POWERSTATE_IDLE	1
++
++static bool exynos5433_hotplug;
++module_param_named(hotplug, exynos5433_hotplug, bool, 0644);
++MODULE_PARM_DESC(hotplug, "allow secondary CPUs to go offline (the monitor's shutdown call, from AArch64)");
++
++/*
++ * The monitor compares the id as w0 and takes the same path for an AArch64
++ * caller as for an AArch32 one (docs/arm64-monitor-smc.md of the port: §1);
++ * SHUTDOWN reads x1 (0 = this core, else the cluster) and x3 (1 = a
++ * system-level path: always 0 here), not x2; x0-x17 come back clobbered,
++ * which the out-of-line SMCCC call allows for.
++ */
++#define exynos5433_smc_id(id)	((unsigned long)(u32)(id))
++
++/* What a shutdown call that came back left, per PMU core, for cpu_kill */
++static unsigned int exynos5433_die_returns[EXYNOS5433_NR_CORES];
++static unsigned long exynos5433_die_x0[EXYNOS5433_NR_CORES];
++
++static void exynos5433_set_boot_flag(unsigned int idx, u32 flag)
++{
++	void __iomem *word = exynos5433_sysram_ns +
++			     EXYNOS5433_BOOT_FLAG_OFFSET + 4 * idx;
++
++	writel(readl(word) | flag, word);
++}
++
++/* Every core but the boot CPU, once the method is set up */
++static bool exynos5433_cpu_can_disable(unsigned int cpu)
++{
++	return cpu != 0;
++}
++
++static int exynos5433_cpu_disable(unsigned int cpu)
++{
++	/*
++	 * Asked for at run time, or a system sleep taking the secondaries down
++	 * (suspend_exynos5433.c: the boot CPU sleeps alone).
++	 */
++	if (!READ_ONCE(exynos5433_hotplug) &&
++	    pm_suspend_target_state != PM_SUSPEND_MEM)
++		return -EPERM;
++	if (exynos5433_smp_state != EXYNOS5433_SMP_READY)
++		return -ENODEV;
++	return 0;
++}
++
++/*
++ * Runs on the CPU going down, interrupts masked, after it left the online
++ * mask (__cpu_disable()).  It must not return (cpu_die(), smp.c).
++ */
++static void exynos5433_cpu_die(unsigned int cpu)
++{
++	u64 mpidr = cpu_logical_map(cpu);
++	unsigned int idx = exynos5433_pmu_core(mpidr);
++	struct arm_smccc_res res;
++	bool last = true;
++	unsigned int c;
++	u32 val;
++
++	/* another online core in this cluster? (platsmp.c:845-854) */
++	for_each_online_cpu(c)
++		if (MPIDR_AFFINITY_LEVEL(cpu_logical_map(c), 1) ==
++		    MPIDR_AFFINITY_LEVEL(mpidr, 1))
++			last = false;
++
++	for (;;) {
++		exynos5433_set_boot_flag(idx, EXYNOS5433_BOOT_FLAG_HOTPLUG);
++
++		/* stock exynos5433_cpu_down(), pmu-exynos5433.c:130-144 */
++		val = exynos5433_pmu_read(EXYNOS_ARM_CORE_CONFIGURATION(idx));
++		val &= ~EXYNOS5433_CORE_PWR_EN;
++		exynos5433_pmu_write(val, EXYNOS_ARM_CORE_CONFIGURATION(idx));
++
++		dsb(sy);
++		arm_smccc_smc(exynos5433_smc_id(EXYNOS5433_SMC_CMD_SHUTDOWN),
++			      last ? EXYNOS5433_OP_TYPE_CLUSTER :
++				     EXYNOS5433_OP_TYPE_CORE,
++			      EXYNOS5433_SMC_POWERSTATE_IDLE, 0, 0, 0, 0, 0, &res);
++
++		/*
++		 * Back: the core is still powered (stock calls again, until
++		 * its pen opens).  Leave a trace for cpu_kill and wait for an
++		 * event before the next try.
++		 */
++		WRITE_ONCE(exynos5433_die_x0[idx], res.a0);
++		WRITE_ONCE(exynos5433_die_returns[idx],
++			   exynos5433_die_returns[idx] + 1);
++		wfe();
++	}
++}
++
++/*
++ * On another CPU: the PMU status of the core drops once the monitor has
++ * powered it off (platsmp.c:877-900).  arm64's convention, unlike ARM32's:
++ * 0 = dead, an error = maybe not (op_cpu_kill(), smp.c).
++ */
++static int exynos5433_cpu_kill(unsigned int cpu)
++{
++	unsigned int idx = exynos5433_pmu_core(cpu_logical_map(cpu));
++	unsigned int ms;
++
++	for (ms = 0; ms < 100; ms++) {
++		if (!exynos5433_core_powered(idx)) {
++			pr_debug("EXYNOS5433: CPU%u: PMU core %u off after %u ms\n",
++				 cpu, idx, ms);
++			return 0;
++		}
++		mdelay(1);
++	}
++
++	pr_err("EXYNOS5433: CPU%u: PMU core %u still powered 100 ms after its shutdown call (the call came back %u times, x0 0x%lx)\n",
++	       cpu, idx, READ_ONCE(exynos5433_die_returns[idx]),
++	       READ_ONCE(exynos5433_die_x0[idx]));
++	exynos5433_show_core("kill", idx);
++	return -ETIMEDOUT;
++}
++
++#ifdef CONFIG_ARM64_EXYNOS5433_SUSPEND
++/*
++ * A test of the way back from a power-down, on one secondary core while
++ * the rest of the system runs: the core saves its context (cpu_suspend()),
++ * the monitor powers it down (SHUTDOWN), then CPU0 powers it on with the
++ * boot register pointing at exynos5433_resume_entry, the AArch32 stub that a
++ * system sleep's wake-up goes through; the core comes back in cpu_resume
++ * and returns from cpu_suspend().  If any of it fails, that core stays
++ * where it stopped and the others carry on.
++ *
++ *   echo N > /sys/module/smp_exynos5433/parameters/c2test   (N: a CPU, 1-7)
+  */
++extern char exynos5433_resume_entry[];
++
++static struct cpu_stop_work exynos5433_c2_stop;
++static int exynos5433_c2_result;
++
++static int exynos5433_c2_finisher(unsigned long idx)
++{
++	struct arm_smccc_res res;
++	u32 val;
++
++	exynos5433_set_boot_flag(idx, EXYNOS5433_BOOT_FLAG_HOTPLUG);
++	val = exynos5433_pmu_read(EXYNOS_ARM_CORE_CONFIGURATION(idx));
++	val &= ~EXYNOS5433_CORE_PWR_EN;
++	exynos5433_pmu_write(val, EXYNOS_ARM_CORE_CONFIGURATION(idx));
++	dsb(sy);
++	arm_smccc_smc(exynos5433_smc_id(EXYNOS5433_SMC_CMD_SHUTDOWN),
++		      EXYNOS5433_OP_TYPE_CORE, EXYNOS5433_SMC_POWERSTATE_IDLE,
++		      0, 0, 0, 0, 0, &res);
++	return 1;			/* came back: the core stayed powered */
++}
++
++static int exynos5433_c2_fn(void *arg)
++{
++	unsigned int idx = exynos5433_pmu_core(read_cpuid_mpidr());
++	int ret;
++
++	local_irq_disable();
++	ret = cpu_pm_enter();
++	if (!ret) {
++		ret = cpu_suspend(idx, exynos5433_c2_finisher);
++		cpu_pm_exit();
++	}
++	local_irq_enable();
++	WRITE_ONCE(exynos5433_c2_result, ret);
++	return 0;
++}
++
++static int exynos5433_c2test_set(const char *val, const struct kernel_param *kp)
++{
++	void __iomem *boot_reg = exynos5433_sysram_ns + EXYNOS5433_BOOT_ADDR_OFFSET;
++	unsigned long resume = __pa_symbol(exynos5433_resume_entry);
++	unsigned long entry = __pa_symbol(exynos5433_smp_entry);
++	unsigned int cpu, idx, us, i;
++	u64 t0, t_off, t_on, t_back;
++	int ret;
++
++	ret = kstrtouint(val, 0, &cpu);
++	if (ret)
++		return ret;
++	if (cpu == 0 || cpu >= nr_cpu_ids || !cpu_online(cpu) ||
++	    exynos5433_smp_state != EXYNOS5433_SMP_READY)
++		return -EINVAL;
++
++	idx = exynos5433_pmu_core(cpu_logical_map(cpu));
++	cpus_read_lock();
++	mutex_lock(&exynos5433_boot_lock);
++
++	WRITE_ONCE(exynos5433_c2_result, -EINPROGRESS);
++	writel(resume, boot_reg);
++	t0 = ktime_get_ns();
++	if (!stop_one_cpu_nowait(cpu, exynos5433_c2_fn, NULL, &exynos5433_c2_stop)) {
++		ret = -EBUSY;
++		goto out;
++	}
++
++	/* down: the PMU status drops (the finisher returns 1 otherwise) */
++	for (us = 0; us < 200000 && exynos5433_core_powered(idx) &&
++	     READ_ONCE(exynos5433_c2_result) == -EINPROGRESS; us += 10)
++		udelay(10);
++	t_off = ktime_get_ns();
++	if (exynos5433_core_powered(idx)) {
++		pr_err("EXYNOS5433: c2test CPU%u: still powered after %u us (result %d)\n",
++		       cpu, us, READ_ONCE(exynos5433_c2_result));
++		ret = -ETIMEDOUT;
++		goto wait;
++	}
++
++	udelay(1000);
++	exynos5433_core_power_up(idx);
++	t_on = ktime_get_ns();
++	for (i = 0; i < EXYNOS5433_RELEASE_TRIES &&
++	     READ_ONCE(exynos5433_c2_result) == -EINPROGRESS; i++) {
++		writel(resume, boot_reg);
++		dsb(sy);
++		sev();
++		udelay(10);
++	}
++	t_back = ktime_get_ns();
++wait:
++	ret = READ_ONCE(exynos5433_c2_result);
++	pr_info("EXYNOS5433: c2test CPU%u (PMU core %u): cpu_suspend() returned %d; down in %llu us, back %llu us after power-on (%u tries)\n",
++		cpu, idx, ret, (t_off - t0) / 1000,
++		ret == -EINPROGRESS ? 0 : (t_back - t_on) / 1000, i);
++	if (ret == -EINPROGRESS) {
++		pr_err("EXYNOS5433: c2test CPU%u: did not come back; that core is lost until reboot\n",
++		       cpu);
++		exynos5433_show_core("c2test", idx);
++		exynos5433_smp_state = EXYNOS5433_SMP_FAILED;
++		ret = -EIO;
++	} else if (ret) {
++		ret = -EIO;
++	}
++out:
++	writel(entry, boot_reg);
++	exynos5433_clear_boot_flag(idx, EXYNOS5433_BOOT_FLAG_HOTPLUG);
++	mutex_unlock(&exynos5433_boot_lock);
++	cpus_read_unlock();
++	return ret;
++}
++
++static const struct kernel_param_ops exynos5433_c2test_ops = {
++	.set	= exynos5433_c2test_set,
++};
++module_param_cb(c2test, &exynos5433_c2test_ops, NULL, 0200);
++#endif /* CONFIG_ARM64_EXYNOS5433_SUSPEND */
++#endif /* CONFIG_HOTPLUG_CPU */
++
+ const struct cpu_operations exynos5433_smp_ops = {
+ 	.name		= "samsung,exynos5433-el2",
+ 	.cpu_init	= exynos5433_cpu_init,
+ 	.cpu_prepare	= exynos5433_cpu_prepare,
+ 	.cpu_boot	= exynos5433_cpu_boot,
+ 	.cpu_postboot	= exynos5433_cpu_postboot,
++#ifdef CONFIG_HOTPLUG_CPU
++	.cpu_can_disable = exynos5433_cpu_can_disable,
++	.cpu_disable	= exynos5433_cpu_disable,
++	.cpu_die	= exynos5433_cpu_die,
++	.cpu_kill	= exynos5433_cpu_kill,
++#endif
+ };
+diff --git a/arch/arm64/kernel/smp_exynos5433_head.S b/arch/arm64/kernel/smp_exynos5433_head.S
+index b87f6b49a..4c63daa24 100644
+--- a/arch/arm64/kernel/smp_exynos5433_head.S
++++ b/arch/arm64/kernel/smp_exynos5433_head.S
+@@ -37,6 +37,53 @@
+ #include <asm/ptrace.h>
+ #include <asm/sysreg.h>
+ 
++/*
++ * The twelve AArch32 words of an entry the monitor (or BL2, on a wake-up)
++ * jumps to, in AArch32 SVC with the MMU off: SMC 0x82000400 to the AArch64
++ * code exactly 2048 bytes after the first word.  The source is in the
++ * comment of exynos5433_smp_entry.
++ */
++	.macro	exynos5433_ex32_words
++	.word	0xf10c01c0		// cpsid	aif
++	.word	0xe59f1020		// ldr	r1, 3f
++	.word	0xe081100f		// add	r1, r1, pc
++	.word	0xe3000400		// movw	r0, #0x400
++	.word	0xe3480200		// movt	r0, #0x8200
++	.word	0xe3a02b02		// mov	r2, #0x800
++	.word	0xe3a03001		// mov	r3, #1
++	.word	0xf57ff04f		// dsb	sy
++	.word	0xe1600070		// smc	#0
++	.word	0xe320f002		// wfe
++	.word	0xeafffffd		// b	1b
++	.word	0x000007f0		// 2048 - 16
++	.endm
++
++/*
++ * EL2 as the loader leaves it for the boot CPU, then eret to EL1 at \target,
++ * MMU off, every exception masked (see exynos5433_smp_entry_el2).
++ */
++	.macro	exynos5433_el2_to_el1, target
++	msr	daifset, #0xf
++	mov_q	x0, HCR_RW
++	msr	hcr_el2, x0
++	mrs	x0, cnthctl_el2
++	orr	x0, x0, #3
++	msr	cnthctl_el2, x0
++	msr	cntvoff_el2, xzr
++	msr	cptr_el2, xzr
++	msr	mdcr_el2, xzr
++	mov_q	x0, INIT_SCTLR_EL1_MMU_OFF
++	msr	sctlr_el1, x0
++	ic	iallu
++	dsb	sy
++	isb
++	adr_l	x0, \target		// a physical address: the MMU is off
++	msr	elr_el2, x0
++	mov_q	x0, INIT_PSTATE_EL1	// EL1h, every exception masked
++	msr	spsr_el2, x0
++	eret
++	.endm
++
+ /*
+  * The monitor takes a 32-bit entry address, so both entries must be below
+  * 4 GiB: smp_exynos5433.c refuses to start a core otherwise.  The AArch64
+@@ -70,18 +117,7 @@ SYM_START(exynos5433_smp_entry, SYM_L_GLOBAL, SYM_A_NONE)
+ 	 *3:	.word	exynos5433_smp_entry_el2 - exynos5433_smp_entry - 16
+ 	 */
+ .Lex32_words:
+-	.word	0xf10c01c0		// cpsid	aif
+-	.word	0xe59f1020		// ldr	r1, 3f
+-	.word	0xe081100f		// add	r1, r1, pc
+-	.word	0xe3000400		// movw	r0, #0x400
+-	.word	0xe3480200		// movt	r0, #0x8200
+-	.word	0xe3a02b02		// mov	r2, #0x800
+-	.word	0xe3a03001		// mov	r3, #1
+-	.word	0xf57ff04f		// dsb	sy
+-	.word	0xe1600070		// smc	#0
+-	.word	0xe320f002		// wfe
+-	.word	0xeafffffd		// b	1b
+-	.word	0x000007f0		// 2048 - 16
++	exynos5433_ex32_words
+ .Lex32_words_end:
+ SYM_FUNC_END(exynos5433_smp_entry)
+ 
+@@ -107,25 +143,7 @@ SYM_FUNC_END(exynos5433_smp_entry)
+  * boot CPU of this kernel has exactly this EL2, and the cores must agree.
+  */
+ SYM_START(exynos5433_smp_entry_el2, SYM_L_GLOBAL, SYM_A_NONE)
+-	msr	daifset, #0xf
+-	mov_q	x0, HCR_RW
+-	msr	hcr_el2, x0
+-	mrs	x0, cnthctl_el2
+-	orr	x0, x0, #3
+-	msr	cnthctl_el2, x0
+-	msr	cntvoff_el2, xzr
+-	msr	cptr_el2, xzr
+-	msr	mdcr_el2, xzr
+-	mov_q	x0, INIT_SCTLR_EL1_MMU_OFF
+-	msr	sctlr_el1, x0
+-	ic	iallu
+-	dsb	sy
+-	isb
+-	adr_l	x0, exynos5433_smp_pen	// a physical address: the MMU is off
+-	msr	elr_el2, x0
+-	mov_q	x0, INIT_PSTATE_EL1	// EL1h, every exception masked
+-	msr	spsr_el2, x0
+-	eret
++	exynos5433_el2_to_el1 exynos5433_smp_pen
+ SYM_FUNC_END(exynos5433_smp_entry_el2)
+ 
+ /*
+@@ -148,3 +166,21 @@ SYM_START(exynos5433_smp_pen, SYM_L_GLOBAL, SYM_A_NONE)
+ 	b	1b
+ 2:	b	secondary_entry
+ SYM_FUNC_END(exynos5433_smp_pen)
++
++/*
++ * System sleep (suspend_exynos5433.c).  On a wake-up the monitor reruns its
++ * cold init and BL2, finding 0xbad at sysram-ns + 0xc, jumps to the address
++ * the kernel left at sysram-ns + 0x8, in AArch32 SVC with the MMU off,
++ * whatever state the core was in before (docs/arm64-monitor-smc.md of the
++ * port, §2): the same way in as a secondary's, but to cpu_resume, which
++ * takes the boot CPU back to where cpu_suspend() left it.
++ */
++	.balign 2048
++SYM_START(exynos5433_resume_entry, SYM_L_GLOBAL, SYM_A_NONE)
++	exynos5433_ex32_words
++SYM_FUNC_END(exynos5433_resume_entry)
++
++	.balign 2048
++SYM_START(exynos5433_resume_entry_el2, SYM_L_GLOBAL, SYM_A_NONE)
++	exynos5433_el2_to_el1 cpu_resume
++SYM_FUNC_END(exynos5433_resume_entry_el2)
+diff --git a/arch/arm64/kernel/suspend_exynos5433.c b/arch/arm64/kernel/suspend_exynos5433.c
+new file mode 100644
+index 000000000..0340b8f8c
+--- /dev/null
++++ b/arch/arm64/kernel/suspend_exynos5433.c
+@@ -0,0 +1,715 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Exynos 5433: system sleep (suspend to RAM) of a 64-bit kernel, without PSCI.
++ *
++ * The 32-bit kernel of this board sleeps through Samsung's secure monitor
++ * the way the vendor kernel does (arch/arm/mach-exynos/suspend.c of the
++ * release tree, "the 32-bit kernel" below): every secondary core taken down,
++ * the PMU programmed for the central sequencer, the resume address and the
++ * 0xbad flag left in sysram-ns, then the monitor's SLEEP call inside
++ * cpu_suspend().  This file is that code: the PMU and clock part is the
++ * 32-bit kernel's, unchanged; what was ARM32 is replaced:
++ *
++ *  - the monitor call is made from AArch64 at EL1.  The monitor compares the
++ *    id as w0 and runs the same SLEEP handler for an AArch64 caller; that
++ *    handler cleans every cache level by set/way, leaves coherency and waits
++ *    for the sequencer, so Linux cleans nothing (docs/arm64-monitor-smc.md of
++ *    the port, §1-2);
++ *  - the way back is AArch32, whatever the caller was: on wake-up the monitor
++ *    reruns its cold init, BL2 finds 0xbad and jumps to the resume address in
++ *    AArch32 SVC with the MMU off.  So that address is a twelve-word AArch32
++ *    stub (smp_exynos5433_head.S) which makes the call a loader makes for the
++ *    boot CPU, SMC 0x82000400, lands in AArch64 at EL2, sets EL2 up as for a
++ *    secondary core and enters cpu_resume at EL1;
++ *  - the secondary cores go down and come back through the hot-unplug of
++ *    smp_exynos5433.c.
++ *
++ * Off unless the command line has exynos5433_sleep=on or =dryrun, as in the
++ * 32-bit kernel.
++ */
++
++#include <linux/arm-smccc.h>
++#include <linux/delay.h>
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/moduleparam.h>
++#include <linux/of.h>
++#include <linux/of_address.h>
++#include <linux/printk.h>
++#include <linux/sizes.h>
++#include <linux/soc/samsung/exynos-regs-pmu.h>
++#include <linux/suspend.h>
++#include <linux/syscore_ops.h>
++
++#include <asm/cputype.h>
++#include <asm/suspend.h>
++
++static void __iomem *exynos5433_pmu_base __ro_after_init;
++static void __iomem *exynos5433_sysram_ns_base __ro_after_init;
++
++static inline void pmu_raw_writel(u32 val, u32 offset)
++{
++	writel_relaxed(val, exynos5433_pmu_base + offset);
++}
++
++static inline u32 pmu_raw_readl(u32 offset)
++{
++	return readl_relaxed(exynos5433_pmu_base + offset);
++}
++
++/*
++ * The 32-bit kernel's exynos_irqwake_intmask: the PMU irqchip that would
++ * change it is not used on this SoC (its PMU node is no interrupt
++ * controller), so it keeps its initial value.
++ */
++#define exynos_irqwake_intmask		0xffffffffU
++
++static int exynos5433_firmware_suspend(void);
++
++enum exynos5433_sleep_mode {
++	EXYNOS5433_SLEEP_OFF,
++	EXYNOS5433_SLEEP_ON,
++	EXYNOS5433_SLEEP_DRYRUN,
++};
++
++static enum exynos5433_sleep_mode exynos5433_sleep __ro_after_init;
++
++static int __init exynos5433_sleep_setup(char *str)
++{
++	if (!str)
++		return -EINVAL;
++
++	if (!strcmp(str, "on") || !strcmp(str, "1"))
++		exynos5433_sleep = EXYNOS5433_SLEEP_ON;
++	else if (!strcmp(str, "dryrun"))
++		exynos5433_sleep = EXYNOS5433_SLEEP_DRYRUN;
++	else
++		exynos5433_sleep = EXYNOS5433_SLEEP_OFF;
++
++	return 0;
++}
++early_param("exynos5433_sleep", exynos5433_sleep_setup);
++
++/*
++ * A kernel booted with exynos5433_sleep=dryrun sleeps for real only when
++ * armed, one sleep at a time:
++ *
++ *   echo 1 > /sys/module/exynos5433_sleep/parameters/arm
++ *
++ * The next .enter issues SMC_CMD_SLEEP and disarms, so the parameter reads
++ * N again after that attempt, whatever its outcome.  The daily kernel boots
++ * so, and the root's sleep hook arms each sleep once the CP and the
++ * Wi-Fi/Bluetooth chip are powered down: a suspend that nothing prepared
++ * stays a dry run.  Test kernels use the switch the same way, so that their
++ * dry runs and real sleeps need no second image.  A kernel booted with
++ * exynos5433_sleep=on always sleeps, and one booted without the switch
++ * registers no system sleep at all, armed or not.
++ */
++static bool exynos5433_sleep_armed;
++#undef MODULE_PARAM_PREFIX
++#define MODULE_PARAM_PREFIX "exynos5433_sleep."
++module_param_named(arm, exynos5433_sleep_armed, bool, 0600);
++
++/* PMU core and power domain power state, stock include/mach/regs-pmu.h:367,372 */
++#define EXYNOS5433_PWR_EN			0xf
++#define EXYNOS5433_NR_PMU_CORES			8
++
++/* PMU LPI block of the EAGLE side, stock include/mach/map.h:88; not in the DT */
++#define EXYNOS5433_PA_PMU_LPI_EAGLE		0x11820000
++#define EXYNOS5433_LPI_MASK_EAGLE_ASYNCBRIDGE	0x20
++#define EXYNOS5433_LPI_MASK_ATB_AUD_CSSYS	BIT(7)
++
++/* EINT_PEND of gpa0-gpa3 in the alive pin controller (EXYNOS7_WKUP_EPEND_OFFSET) */
++#define EXYNOS5433_EINT_PEND(n)			(0xa00 + 4 * (n))
++
++/* CMU_APOLLO (KFC), stock include/mach/regs-clock-exynos5433.h:634 */
++#define EXYNOS5433_KFC_STOPCTRL			0x1000
++
++enum {
++	EXYNOS5433_CMU_TOP,
++	EXYNOS5433_CMU_BUS2,
++	EXYNOS5433_CMU_CPIF,
++	EXYNOS5433_CMU_FSYS,
++	EXYNOS5433_CMU_MIF,
++	EXYNOS5433_CMU_PERIC,
++	EXYNOS5433_CMU_APOLLO,
++	EXYNOS5433_NR_CMU,
++};
++
++static const char *const exynos5433_cmu_compat[EXYNOS5433_NR_CMU] __initconst = {
++	[EXYNOS5433_CMU_TOP]	= "samsung,exynos5433-cmu-top",
++	[EXYNOS5433_CMU_BUS2]	= "samsung,exynos5433-cmu-bus2",
++	[EXYNOS5433_CMU_CPIF]	= "samsung,exynos5433-cmu-cpif",
++	[EXYNOS5433_CMU_FSYS]	= "samsung,exynos5433-cmu-fsys",
++	[EXYNOS5433_CMU_MIF]	= "samsung,exynos5433-cmu-mif",
++	[EXYNOS5433_CMU_PERIC]	= "samsung,exynos5433-cmu-peric",
++	[EXYNOS5433_CMU_APOLLO]	= "samsung,exynos5433-cmu-apollo",
++};
++
++static void __iomem *exynos5433_cmu[EXYNOS5433_NR_CMU] __ro_after_init;
++static void __iomem *exynos5433_lpi_eagle __ro_after_init;
++static void __iomem *exynos5433_eint_base __ro_after_init;
++
++/*
++ * SYS_PWR_REG values for SLEEP, the last column of exynos5433_pmu_config[]
++ * (stock pmu_cal_sys_exynos5433.c:36-122, columns at :37; offsets from
++ * include/mach/pmu_cal_sys_exynos5433.h:146-326), in its order.
++ */
++static const struct exynos5433_pmu_reg {
++	u32 offset;
++	u32 val;
++} exynos5433_sleep_conf[] = {
++	{ 0x1000, 0x8 },	/* ATLAS_CPU0 */
++	{ 0x1008, 0x0 },	/* DIS_IRQ_ATLAS_CPU0_CENTRAL */
++	{ 0x1010, 0x8 },	/* ATLAS_CPU1 */
++	{ 0x1018, 0x0 },	/* DIS_IRQ_ATLAS_CPU1_CENTRAL */
++	{ 0x1020, 0x8 },	/* ATLAS_CPU2 */
++	{ 0x1028, 0x0 },	/* DIS_IRQ_ATLAS_CPU2_CENTRAL */
++	{ 0x1030, 0x8 },	/* ATLAS_CPU3 */
++	{ 0x1038, 0x0 },	/* DIS_IRQ_ATLAS_CPU3_CENTRAL */
++	{ 0x1040, 0x8 },	/* APOLLO_CPU0 */
++	{ 0x1048, 0x0 },	/* DIS_IRQ_APOLLO_CPU0_CENTRAL */
++	{ 0x1050, 0x8 },	/* APOLLO_CPU1 */
++	{ 0x1058, 0x0 },	/* DIS_IRQ_APOLLO_CPU1_CENTRAL */
++	{ 0x1060, 0x8 },	/* APOLLO_CPU2 */
++	{ 0x1068, 0x0 },	/* DIS_IRQ_APOLLO_CPU2_CENTRAL */
++	{ 0x1070, 0x8 },	/* APOLLO_CPU3 */
++	{ 0x1078, 0x0 },	/* DIS_IRQ_APOLLO_CPU3_CENTRAL */
++	{ 0x1080, 0x8 },	/* ATLAS_NONCPU */
++	{ 0x1084, 0x8 },	/* APOLLO_NONCPU */
++	{ 0x10b0, 0x0 },	/* A5IS */
++	{ 0x10b4, 0x0 },	/* DIS_IRQ_A5IS_LOCAL */
++	{ 0x10b8, 0x0 },	/* DIS_IRQ_A5IS_CENTRAL */
++	{ 0x10c0, 0x7 },	/* ATLAS_L2 */
++	{ 0x10c4, 0x7 },	/* APOLLO_L2 */
++	{ 0x1100, 0x0 },	/* CLKSTOP_CMU_TOP */
++	{ 0x1104, 0x0 },	/* CLKRUN_CMU_TOP */
++	{ 0x110c, 0x0 },	/* RESET_CMU_TOP */
++	{ 0x111c, 0x0 },	/* RESET_CPUCLKSTOP */
++	{ 0x1120, 0x0 },	/* CLKSTOP_CMU_MIF */
++	{ 0x1124, 0x0 },	/* CLKRUN_CMU_MIF */
++	{ 0x112c, 0x0 },	/* RESET_CMU_MIF */
++	{ 0x1138, 0x1 },	/* DDRPHY_DLLLOCK */
++	{ 0x1140, 0x0 },	/* DISABLE_PLL_CMU_TOP */
++	{ 0x1144, 0x0 },	/* DISABLE_PLL_AUD_PLL */
++	{ 0x1160, 0x0 },	/* DISABLE_PLL_CMU_MIF */
++	{ 0x1180, 0x0 },	/* TOP_BUS */
++	{ 0x1184, 0x1 },	/* TOP_RETENTION */
++	{ 0x1188, 0x3 },	/* TOP_PWR */
++	{ 0x1190, 0x0 },	/* TOP_BUS_MIF */
++	{ 0x1194, 0x1 },	/* TOP_RETENTION_MIF */
++	{ 0x1198, 0x3 },	/* TOP_PWR_MIF */
++	{ 0x11a0, 0x0 },	/* LOGIC_RESET */
++	{ 0x11a4, 0x1 },	/* OSCCLK_GATE */
++	{ 0x11a8, 0x0 },	/* SLEEP_RESET */
++	{ 0x11b0, 0x0 },	/* LOGIC_RESET_MIF */
++	{ 0x11b4, 0x1 },	/* OSCCLK_GATE_MIF */
++	{ 0x11b8, 0x0 },	/* SLEEP_RESET_MIF */
++	{ 0x11c0, 0x0 },	/* MEMORY_TOP */
++	{ 0x1200, 0x0 },	/* PAD_RETENTION_LPDDR3 */
++	{ 0x1208, 0x0 },	/* PAD_RETENTION_JTAG */
++	{ 0x1220, 0x0 },	/* PAD_RETENTION_TOP */
++	{ 0x1224, 0x0 },	/* PAD_RETENTION_UART */
++	{ 0x1230, 0x0 },	/* PAD_RETENTION_EBIA */
++	{ 0x1234, 0x0 },	/* PAD_RETENTION_EBIB */
++	{ 0x1238, 0x0 },	/* PAD_RETENTION_SPI */
++	{ 0x123c, 0x0 },	/* PAD_RETENTION_MIF */
++	{ 0x1240, 0x1 },	/* PAD_ISOLATION */
++	{ 0x1244, 0x0 },	/* PAD_RETENTION_USBXTI */
++	{ 0x1248, 0x0 },	/* PAD_RETENTION_BOOTLDO */
++	{ 0x1250, 0x1 },	/* PAD_ISOLATION_MIF */
++	{ 0x1254, 0x0 },	/* PAD_RETENTION_FSYSGENIO */
++	{ 0x1260, 0x0 },	/* PAD_ALV_SEL */
++	{ 0x1284, 0x0 },	/* XXTI */
++	{ 0x1288, 0x0 },	/* XXTI26 */
++	{ 0x12c0, 0x0 },	/* EXT_REGULATOR */
++	{ 0x1300, 0x0 },	/* GPIO_MODE */
++	{ 0x1304, 0x0 },	/* GPIO_MODE_FSYS */
++	{ 0x1320, 0x0 },	/* GPIO_MODE_MIF */
++	{ 0x1340, 0x0 },	/* GPIO_MODE_AUD */
++	{ 0x1400, 0x0 },	/* GSCL */
++	{ 0x1404, 0x0 },	/* CAM0 */
++	{ 0x1408, 0x0 },	/* MSCL */
++	{ 0x140c, 0x0 },	/* G3D */
++	{ 0x1410, 0x0 },	/* DISP */
++	{ 0x1414, 0x0 },	/* CAM1 */
++	{ 0x1418, 0x0 },	/* AUD */
++	{ 0x141c, 0x0 },	/* FSYS */
++	{ 0x1420, 0x0 },	/* BUS2 */
++	{ 0x1424, 0x0 },	/* G2D */
++	{ 0x1428, 0x0 },	/* ISP */
++	{ 0x1430, 0x0 },	/* MFC */
++	{ 0x1438, 0x0 },	/* HEVC */
++	{ 0x15dc, 0x0 },	/* RESET_SLEEP_FSYS */
++	{ 0x15e0, 0x0 },	/* RESET_SLEEP_BUS2 */
++};
++
++/*
++ * Clock writes "before enter central sequence mode", exynos5433_set_clk[]
++ * (stock pm-exynos5433.c:49-59) in its order: CMU_FSYS before its bus
++ * clock aclk_fsys_200 (ENABLE_ACLK_TOP bit 18) stops, BUS2 on OSCCLK before
++ * aclk_bus2_400 (ENABLE_ACLK_MIF3 bit 4) stops.  Every register is in the
++ * save lists of clk-exynos5433.c, put back by the CMU syscore resume (TOP,
++ * BUS2, CPIF, MIF, PERIC) or by the runtime resume of CMU_FSYS.
++ */
++static const struct exynos5433_cmu_reg {
++	u8 cmu;
++	u16 offset;
++	u32 val;
++} exynos5433_sleep_clk[] = {
++	{ EXYNOS5433_CMU_FSYS,	0x0b00, 0x00007df9 },	/* ENABLE_IP_FSYS0 */
++	{ EXYNOS5433_CMU_PERIC,	0x0b00, 0xfffffeff },	/* ENABLE_IP_PERIC0 */
++	{ EXYNOS5433_CMU_TOP,	0x023c, 0x00000011 },	/* SRC_SEL_TOP_PERIC1 */
++	{ EXYNOS5433_CMU_FSYS,	0x0200, 0x00000000 },	/* SRC_SEL_FSYS0 */
++	{ EXYNOS5433_CMU_BUS2,	0x0200, 0x00000000 },	/* SRC_SEL_BUS2 */
++	{ EXYNOS5433_CMU_FSYS,	0x0a00, 0x00000000 },	/* ENABLE_SCLK_FSYS */
++	{ EXYNOS5433_CMU_CPIF,	0x0b00, 0x000ff000 },	/* ENABLE_IP_CPIF0 */
++	{ EXYNOS5433_CMU_TOP,	0x0800, 0x67e8ffed },	/* ENABLE_ACLK_TOP */
++	{ EXYNOS5433_CMU_MIF,	0x080c, 0x00000003 },	/* ENABLE_ACLK_MIF3 */
++};
++
++/*
++ * PMU state that stock sets once at boot in exynos5433_pmu_init() (stock
++ * pmu-exynos5433.c:457-531) and platsmp.c does not, i.e. the state every
++ * stock sleep started from: written over the bits given by the syscore
++ * suspend, put back as the bootloader left it by the syscore resume.
++ */
++static const struct exynos5433_pmu_bits {
++	u32 offset;
++	u32 mask;
++	u32 val;
++} exynos5433_boot_state[] = {
++	/*
++	 * exynos_use_feedback() (:252-266) on exynos_list_feed[] (:30-48)
++	 * past the two NONCPU entries: USE_SC_COUNTER off, USE_SC_FEEDBACK on
++	 * (include/mach/regs-pmu.h:295-296)
++	 */
++	{ 0x2c48, 0x3, 0x2 },	/* TOP_PWR_OPTION */
++	{ 0x2cc8, 0x3, 0x2 },	/* TOP_PWR_SYSMEM_OPTION */
++	{ 0x4008, 0x3, 0x2 },	/* GSCL_OPTION */
++	{ 0x4028, 0x3, 0x2 },	/* CAM0_OPTION */
++	{ 0x4048, 0x3, 0x2 },	/* MSCL_OPTION */
++	{ 0x4068, 0x3, 0x2 },	/* G3D_OPTION */
++	{ 0x4088, 0x3, 0x2 },	/* DISP_OPTION */
++	{ 0x40a8, 0x3, 0x2 },	/* CAM1_OPTION */
++	{ 0x40c8, 0x3, 0x2 },	/* AUD_OPTION */
++	{ 0x40e8, 0x3, 0x2 },	/* FSYS_OPTION */
++	{ 0x4108, 0x3, 0x2 },	/* BUS2_OPTION */
++	{ 0x4128, 0x3, 0x2 },	/* G2D_OPTION */
++	{ 0x4148, 0x3, 0x2 },	/* ISP_OPTION */
++	{ 0x4188, 0x3, 0x2 },	/* MFC_OPTION */
++	{ 0x41c8, 0x3, 0x2 },	/* HEVC_OPTION */
++	{ EXYNOS5433_OSC_DURATION, ~0U, 0x3a98 },		/* :466 */
++	/* STANDBYWFI of all eight cores, PROLOGNED_LOGIC_RESET: :468-470 */
++	{ S5P_CENTRAL_SEQ_OPTION, ~0U, 0x00ff1000 },
++	/*
++	 * USE_AUTOMATIC_L2FLUSHREQ and USE_RETENTION off; on the EAGLE L2,
++	 * USE_STANDBYWFIL2, USE_DEACTIVATE_ACP/ACE on (include/mach/
++	 * regs-pmu-exynos5433.h:206, regs-pmu.h:1026-1029)
++	 */
++	{ EXYNOS5433_L2_OPTION(0), 0x000f0010, 0x000d0000 },	/* :480-482, :492-495 */
++	{ EXYNOS5433_L2_OPTION(1), 0x00020010, 0x00000000 },	/* :484-486, :496-498 */
++	{ EXYNOS5433_PMU_SPARE0, BIT(1), BIT(1) },		/* EN_NONRET_RESET, :519-522 */
++	{ EXYNOS5433_PMU_DEBUG, 0x70, 0x40 },			/* :528-531 */
++};
++
++static u32 exynos5433_boot_state_saved[ARRAY_SIZE(exynos5433_boot_state)];
++static u32 exynos5433_kfc_stopctrl_saved;
++
++static void exynos5433_boot_state_apply(void)
++{
++	static bool shown;
++	unsigned int i;
++	u32 val;
++
++	for (i = 0; i < ARRAY_SIZE(exynos5433_boot_state); i++) {
++		const struct exynos5433_pmu_bits *r = &exynos5433_boot_state[i];
++
++		val = pmu_raw_readl(r->offset);
++		exynos5433_boot_state_saved[i] = val;
++		if (!shown && (val & r->mask) != r->val)
++			pr_info("EXYNOS5433: sleep: PMU 0x%04x 0x%08x -> 0x%08x (stock boot state)\n",
++				r->offset, val, (val & ~r->mask) | r->val);
++		pmu_raw_writel((val & ~r->mask) | r->val, r->offset);
++	}
++
++	/* clock freeze cycles around the cluster clamp, :524-526 */
++	val = readl_relaxed(exynos5433_cmu[EXYNOS5433_CMU_APOLLO] +
++			    EXYNOS5433_KFC_STOPCTRL);
++	exynos5433_kfc_stopctrl_saved = val;
++	if (!shown && val)
++		pr_info("EXYNOS5433: sleep: KFC_STOPCTRL 0x%08x -> 0 (stock boot state)\n",
++			val);
++	writel_relaxed(0, exynos5433_cmu[EXYNOS5433_CMU_APOLLO] +
++		       EXYNOS5433_KFC_STOPCTRL);
++
++	shown = true;
++}
++
++static void exynos5433_boot_state_restore(void)
++{
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(exynos5433_boot_state); i++)
++		pmu_raw_writel(exynos5433_boot_state_saved[i],
++			       exynos5433_boot_state[i].offset);
++
++	writel_relaxed(exynos5433_kfc_stopctrl_saved,
++		       exynos5433_cmu[EXYNOS5433_CMU_APOLLO] +
++		       EXYNOS5433_KFC_STOPCTRL);
++}
++
++/*
++ * exynos_eagle_asyncbridge_ignore_lpi(), stock pmu-exynos5433.c:317-329:
++ * the ATB_AUD_CSSYS bridge has no LPI port, BLK_AUD cannot go down unless
++ * its LPI is ignored.
++ */
++static void exynos5433_ignore_aud_lpi(void)
++{
++	void __iomem *reg = exynos5433_lpi_eagle +
++			    EXYNOS5433_LPI_MASK_EAGLE_ASYNCBRIDGE;
++
++	writel_relaxed(readl_relaxed(reg) | EXYNOS5433_LPI_MASK_ATB_AUD_CSSYS,
++		       reg);
++}
++
++/*
++ * Stock hot-unplugs CPUs 7..1 before every sleep; here suspend has taken
++ * them down through exynos_cpu_die().  A core that the monitor left
++ * powered would spin in Linux under the central sequencer: no sleep then.
++ */
++static int exynos5433_secondaries_off(void)
++{
++	u32 mpidr = read_cpuid_mpidr();
++	unsigned int self = MPIDR_AFFINITY_LEVEL(mpidr, 0) +
++			    4 * MPIDR_AFFINITY_LEVEL(mpidr, 1);
++	unsigned int i;
++	int ret = 0;
++
++	for (i = 0; i < EXYNOS5433_NR_PMU_CORES; i++) {
++		u32 status = pmu_raw_readl(EXYNOS_ARM_CORE_STATUS(i));
++
++		if (i == self ||
++		    (status & EXYNOS5433_PWR_EN) != EXYNOS5433_PWR_EN)
++			continue;
++
++		pr_err("EXYNOS5433: PMU core %u still powered (STATUS 0x%08x), no sleep\n",
++		       i, status);
++		ret = -EBUSY;
++	}
++
++	return ret;
++}
++
++static int exynos5433_pm_suspend(void *data)
++{
++	u32 tmp;
++	int ret;
++
++	ret = exynos5433_secondaries_off();
++	if (ret)
++		return ret;
++
++	exynos5433_boot_state_apply();
++	exynos5433_ignore_aud_lpi();		/* set at boot by stock, :472 */
++
++	/* exynos_central_sequencer_ctrl(true), pmu_cal_sys_exynos5433.c:142-151 */
++	tmp = pmu_raw_readl(S5P_CENTRAL_SEQ_CONFIGURATION);
++	pmu_raw_writel(tmp & ~S5P_CENTRAL_LOWPWR_CFG,
++		       S5P_CENTRAL_SEQ_CONFIGURATION);
++	tmp = pmu_raw_readl(EXYNOS5433_CENTRAL_SEQ_MIF_CONFIGURATION);
++	pmu_raw_writel(tmp & ~S5P_CENTRAL_LOWPWR_CFG,
++		       EXYNOS5433_CENTRAL_SEQ_MIF_CONFIGURATION);
++
++	return 0;
++}
++
++static void exynos5433_pm_resume(void *data)
++{
++	u32 seq = pmu_raw_readl(S5P_CENTRAL_SEQ_CONFIGURATION);
++	u32 seq_mif = pmu_raw_readl(EXYNOS5433_CENTRAL_SEQ_MIF_CONFIGURATION);
++	bool slept = seq & S5P_CENTRAL_LOWPWR_CFG;
++
++	/*
++	 * The PMU sets CENTRAL_LOWPWR_CFG again once it has put the system to
++	 * sleep.  Still clear, there was no sleep (a wake-up source pending, a
++	 * dry run, pm_test): disarm the sequencer (stock pm-exynos5433.c:243-255),
++	 * and the MIF one as set_pmu_early_wakeup() does
++	 * (pmu_cal_sys_exynos5433.c:190-193, :133-151).
++	 */
++	if (!slept)
++		pmu_raw_writel(seq | S5P_CENTRAL_LOWPWR_CFG,
++			       S5P_CENTRAL_SEQ_CONFIGURATION);
++	if (!(seq_mif & S5P_CENTRAL_LOWPWR_CFG))
++		pmu_raw_writel(seq_mif | S5P_CENTRAL_LOWPWR_CFG,
++			       EXYNOS5433_CENTRAL_SEQ_MIF_CONFIGURATION);
++
++	if (slept) {
++		/* "LPI MASK is reset after wakeup", pm-exynos5433.c:257-258 */
++		exynos5433_ignore_aud_lpi();
++
++		/*
++		 * Pad retention release, :260-262.  The other groups of
++		 * :263-275 are pinctrl's, which releases them after it has
++		 * restored its banks (pinctrl-exynos-arm64.c).
++		 */
++		pmu_raw_writel(EXYNOS_WAKEUP_FROM_LOWPWR,
++			       EXYNOS5433_PAD_RETENTION_DRAM_OPTION);
++		pmu_raw_writel(EXYNOS_WAKEUP_FROM_LOWPWR,
++			       EXYNOS5433_PAD_RETENTION_JTAG_OPTION);
++	}
++
++	exynos5433_boot_state_restore();
++
++	/* wake-up reason as stock reads it, pm-exynos5433.c:113-147 */
++	pr_info("EXYNOS5433: %s: WAKEUP_STAT 0x%08x, EINT_PEND %02x %02x %02x %02x, CENTRAL_SEQ 0x%08x MIF 0x%08x\n",
++		slept ? "woke up" : "no sleep (early wake-up, dry run or pm_test)",
++		pmu_raw_readl(S5P_WAKEUP_STAT),
++		readl_relaxed(exynos5433_eint_base + EXYNOS5433_EINT_PEND(0)),
++		readl_relaxed(exynos5433_eint_base + EXYNOS5433_EINT_PEND(1)),
++		readl_relaxed(exynos5433_eint_base + EXYNOS5433_EINT_PEND(2)),
++		readl_relaxed(exynos5433_eint_base + EXYNOS5433_EINT_PEND(3)),
++		seq, seq_mif);
++}
++
++static int exynos5433_pm_prepare(void)
++{
++	unsigned int i;
++	u32 status = 0;
++
++	/*
++	 * Wake-up masks, stock include/mach/pm-core.h:50-58: of the PMU
++	 * sources only bit 31 (meaning unknown) open, as in stock, and the
++	 * low halves of MASK1/2; EINT 32-63 (gpf1-gpf5) all masked, pinctrl
++	 * cannot arm them.  EINT 0-31 is pinctrl's.
++	 */
++	pmu_raw_writel(exynos_irqwake_intmask & ~BIT(31), EXYNOS5433_WAKEUP_MASK);
++	pmu_raw_writel(0xffff0000, EXYNOS5433_WAKEUP_MASK1);
++	pmu_raw_writel(0xffff0000, EXYNOS5433_WAKEUP_MASK2);
++	pmu_raw_writel(0xffffffff, EXYNOS5433_EINT_WAKEUP_MASK1);
++
++	/* pm-exynos5433.c:213, pmu_cal_sys_exynos5433.c:124-131 */
++	for (i = 0; i < ARRAY_SIZE(exynos5433_sleep_conf); i++)
++		pmu_raw_writel(exynos5433_sleep_conf[i].val,
++			       exynos5433_sleep_conf[i].offset);
++
++	/* XXTI kept on while CLKOUT (the codec MCLK1) runs, :61-63, :219-221 */
++	if (!(pmu_raw_readl(EXYNOS5433_PMU_DEBUG) & BIT(0)))
++		pmu_raw_writel(0x1, EXYNOS5_XXTI_SYS_PWR_REG);
++
++	/* BLK_FSYS on before CMU_FSYS is written, :223-230 (bounded here) */
++	if (pmu_raw_readl(EXYNOS5433_FSYS_STATUS) == 0) {
++		pmu_raw_writel(EXYNOS5433_PWR_EN, EXYNOS5433_FSYS_CONFIGURATION);
++		for (i = 0; i < 1000; i++) {
++			status = pmu_raw_readl(EXYNOS5433_FSYS_STATUS);
++			if (status == EXYNOS5433_PWR_EN)
++				break;
++			udelay(10);
++		}
++		if (status != EXYNOS5433_PWR_EN) {
++			pr_err("EXYNOS5433: BLK_FSYS does not power up (STATUS 0x%08x), no sleep\n",
++			       status);
++			return -ETIMEDOUT;
++		}
++	}
++
++	/* :232-236 */
++	for (i = 0; i < ARRAY_SIZE(exynos5433_sleep_clk); i++)
++		writel(exynos5433_sleep_clk[i].val,
++		       exynos5433_cmu[exynos5433_sleep_clk[i].cmu] +
++		       exynos5433_sleep_clk[i].offset);
++
++	return 0;
++}
++
++static int exynos5433_suspend_enter(suspend_state_t state)
++{
++	u32 eint_wakeup_mask = pmu_raw_readl(EXYNOS5433_EINT_WAKEUP_MASK);
++	bool dryrun = exynos5433_sleep == EXYNOS5433_SLEEP_DRYRUN &&
++		      !READ_ONCE(exynos5433_sleep_armed);
++	int ret;
++
++	/* the test of exynos_suspend_enter(), on the 5433 EINT mask */
++	if (exynos_irqwake_intmask == -1U &&
++	    eint_wakeup_mask == EXYNOS_EINT_WAKEUP_MASK_DISABLED) {
++		pr_err("%s: No wake-up sources!\n", __func__);
++		pr_err("%s: Aborting sleep\n", __func__);
++		return -EINVAL;
++	}
++
++	ret = exynos5433_pm_prepare();
++	if (ret)
++		return ret;
++
++	/*
++	 * PMU_DEBUG bit 0 set (CLKOUT off) skips the XXTI write of
++	 * exynos5433_pm_prepare(): logged so that an XXTI read back with bit 0
++	 * clear tells the skipped write from one that did not hold.
++	 */
++	pr_info("EXYNOS5433: %s: EINT_WAKEUP_MASK 0x%08x, CENTRAL_SEQ 0x%08x MIF 0x%08x OPTION 0x%08x, XXTI 0x%08x, PMU_DEBUG 0x%08x\n",
++		dryrun ? "dry run, no SMC_CMD_SLEEP" : "SMC_CMD_SLEEP",
++		eint_wakeup_mask,
++		pmu_raw_readl(S5P_CENTRAL_SEQ_CONFIGURATION),
++		pmu_raw_readl(EXYNOS5433_CENTRAL_SEQ_MIF_CONFIGURATION),
++		pmu_raw_readl(S5P_CENTRAL_SEQ_OPTION),
++		pmu_raw_readl(EXYNOS5_XXTI_SYS_PWR_REG),
++		pmu_raw_readl(EXYNOS5433_PMU_DEBUG));
++
++	if (dryrun)
++		return 0;
++
++	/* armed for this attempt only */
++	WRITE_ONCE(exynos5433_sleep_armed, false);
++
++	/*
++	 * firmware.c exynos_suspend(): resume address and magic, then
++	 * SMC_CMD_SLEEP inside cpu_suspend().  It returns 1 when the monitor
++	 * comes back without the PMU having taken the system down.
++	 */
++	ret = exynos5433_firmware_suspend();
++	if (ret)
++		return ret < 0 ? ret : -EBUSY;
++
++	return 0;
++}
++
++/*
++ * The 32-bit kernel's firmware suspend op (arch/arm/mach-exynos/firmware.c,
++ * exynos_suspend() and exynos_cpu_suspend()), for AArch64.
++ */
++#define EXYNOS5433_SMC_CMD_SLEEP	(-3)
++#define EXYNOS5433_BOOT_ADDR		0x8	/* sysram-ns: the resume address */
++#define EXYNOS5433_BOOT_FLAG		0xc	/* sysram-ns: 0xbad = resume */
++#define EXYNOS5433_SLEEP_MAGIC		0x00000bad
++
++extern char exynos5433_resume_entry[];		/* AArch32, smp_exynos5433_head.S */
++
++static int exynos5433_sleep_finisher(unsigned long arg)
++{
++	struct arm_smccc_res res;
++
++	arm_smccc_smc((u32)EXYNOS5433_SMC_CMD_SLEEP, 0, 0, 0, 0, 0, 0, 0, &res);
++
++	/*
++	 * Back: the PMU did not take the system down (a wake-up source was
++	 * pending).  The monitor returns x0 = -1 then (docs/arm64-monitor-smc.md
++	 * §2).
++	 */
++	pr_info("EXYNOS5433: the monitor's SLEEP came back (x0 0x%lx): early wake-up\n",
++		res.a0);
++	writel(0, exynos5433_sysram_ns_base + EXYNOS5433_BOOT_FLAG);
++	return 1;
++}
++
++static int exynos5433_firmware_suspend(void)
++{
++	phys_addr_t resume = __pa_symbol(exynos5433_resume_entry);
++
++	writel(EXYNOS5433_SLEEP_MAGIC,
++	       exynos5433_sysram_ns_base + EXYNOS5433_BOOT_FLAG);
++	writel(resume, exynos5433_sysram_ns_base + EXYNOS5433_BOOT_ADDR);
++
++	return cpu_suspend(0, exynos5433_sleep_finisher);
++}
++
++static const struct platform_suspend_ops exynos5433_suspend_ops = {
++	.enter		= exynos5433_suspend_enter,
++	.valid		= suspend_valid_only_mem,
++};
++
++static const struct syscore_ops exynos5433_syscore_ops = {
++	.suspend	= exynos5433_pm_suspend,
++	.resume		= exynos5433_pm_resume,
++};
++
++static struct syscore exynos5433_syscore = {
++	.ops		= &exynos5433_syscore_ops,
++};
++
++static int __init exynos5433_pm_init(void)
++{
++	struct device_node *np, *alive;
++	unsigned int i;
++
++	if (!of_machine_is_compatible("samsung,exynos5433"))
++		return 0;
++
++	if (exynos5433_sleep == EXYNOS5433_SLEEP_OFF) {
++		pr_info("EXYNOS5433: system sleep not registered (exynos5433_sleep=on or dryrun)\n");
++		return 0;
++	}
++
++	if (__pa_symbol(exynos5433_resume_entry) >> 32) {
++		pr_err("EXYNOS5433: the resume entry is above 4 GiB; system sleep not registered\n");
++		return -ERANGE;
++	}
++
++	np = of_find_compatible_node(NULL, NULL, "samsung,exynos5433-pmu");
++	if (np)
++		exynos5433_pmu_base = of_iomap(np, 0);
++	of_node_put(np);
++
++	np = of_find_compatible_node(NULL, NULL, "samsung,exynos4210-sysram-ns");
++	if (np)
++		exynos5433_sysram_ns_base = of_iomap(np, 0);
++	of_node_put(np);
++
++	if (!exynos5433_pmu_base || !exynos5433_sysram_ns_base) {
++		pr_err("EXYNOS5433: system sleep needs the PMU and the sysram-ns page; not registered\n");
++		goto err;
++	}
++
++	for (i = 0; i < EXYNOS5433_NR_CMU; i++) {
++		np = of_find_compatible_node(NULL, NULL, exynos5433_cmu_compat[i]);
++		if (!np)
++			goto err;
++		exynos5433_cmu[i] = of_iomap(np, 0);
++		of_node_put(np);
++		if (!exynos5433_cmu[i])
++			goto err;
++	}
++
++	np = of_find_compatible_node(NULL, NULL, "samsung,exynos5433-wakeup-eint");
++	alive = of_get_parent(np);
++	of_node_put(np);
++	if (!alive)
++		goto err;
++	exynos5433_eint_base = of_iomap(alive, 0);
++	of_node_put(alive);
++	if (!exynos5433_eint_base)
++		goto err;
++
++	exynos5433_lpi_eagle = ioremap(EXYNOS5433_PA_PMU_LPI_EAGLE, SZ_4K);
++	if (!exynos5433_lpi_eagle)
++		goto err;
++
++	/*
++	 * Stock masks the AUD trace bus out of the low-power handshake once
++	 * at boot (pmu-exynos5433.c:472); the 32-bit kernel found the AUD
++	 * domain stuck without it (2026-11-05).
++	 */
++	exynos5433_ignore_aud_lpi();
++
++	register_syscore(&exynos5433_syscore);
++	suspend_set_ops(&exynos5433_suspend_ops);
++
++	pr_info("EXYNOS5433: system sleep registered%s\n",
++		exynos5433_sleep == EXYNOS5433_SLEEP_DRYRUN ?
++		" (dry run: SLEEP skipped unless armed)" : "");
++	return 0;
++
++err:
++	pr_err("EXYNOS5433: cannot map the PMU, sysram-ns, CMU, pin controller or LPI registers; system sleep not registered\n");
++	if (exynos5433_eint_base)
++		iounmap(exynos5433_eint_base);
++	for (i = 0; i < EXYNOS5433_NR_CMU; i++)
++		if (exynos5433_cmu[i])
++			iounmap(exynos5433_cmu[i]);
++	if (exynos5433_sysram_ns_base)
++		iounmap(exynos5433_sysram_ns_base);
++	if (exynos5433_pmu_base)
++		iounmap(exynos5433_pmu_base);
++	return -ENOMEM;
++}
++/* after the CMU and pin controllers' own init, before userspace */
++late_initcall(exynos5433_pm_init);
+-- 
+2.52.0
+

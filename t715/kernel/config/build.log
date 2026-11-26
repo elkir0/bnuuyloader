@@ -1,71 +1,43 @@
 make[1]: Entering directory '/build'
-  SYNC    include/config/auto.conf
-  GEN     Makefile
   GEN     Makefile
   UPD     include/config/kernel.release
   UPD     include/generated/utsrelease.h
   CALL    /view/scripts/checksyscalls.sh
-  GEN     usr/initramfs_data.cpio
-  UPD     init/utsversion-tmp.h
-  CC      init/version.o
   CC      kernel/sys.o
+  CC      init/version.o
   AR      init/built-in.a
-  GZIP    usr/initramfs_inc_data
-  AS      usr/initramfs_data.o
-  AR      usr/built-in.a
   CC      drivers/base/firmware_loader/main.o
-  CC [M]  drivers/misc/modem_v1/modem_main.o
   CC      kernel/module/main.o
-  CC [M]  drivers/misc/modem_v1/modem_variation.o
-  CC [M]  drivers/misc/modem_v1/modem_io_device.o
-  CC [M]  drivers/misc/modem_v1/modem_utils.o
-  CC [M]  drivers/misc/modem_v1/modem_ctrl_ss333.o
   AR      drivers/base/firmware_loader/built-in.a
   AR      drivers/base/built-in.a
-  CC [M]  drivers/misc/modem_v1/link_device_memory.o
-  CC [M]  drivers/misc/modem_v1/link_device_bootdump.o
-  AR      kernel/module/built-in.a
-  CC [M]  drivers/misc/modem_v1/link_device_memory_main.o
-  CC [M]  drivers/misc/modem_v1/link_device_memory_snapshot.o
-  AR      kernel/built-in.a
-  CC [M]  drivers/misc/modem_v1/link_device_memory_flow_control.o
-  CC [M]  drivers/misc/modem_v1/link_device_memory_debug.o
-  CC [M]  drivers/misc/modem_v1/link_ctrlmsg_command.o
-  CC [M]  drivers/misc/modem_v1/link_device_memory_sbd.o
-  CC [M]  drivers/misc/modem_v1/link_device_lli.o
-  CC [M]  drivers/misc/modem_v1/link_device_spi.o
-  LD [M]  drivers/misc/modem_v1/sec_modem_v1.o
   AR      drivers/built-in.a
+  AR      kernel/module/built-in.a
+  AR      kernel/built-in.a
   AR      built-in.a
   AR      vmlinux.a
   LD      vmlinux.o
   OBJCOPY modules.builtin.modinfo
   GEN     modules.builtin
   MODPOST Module.symvers
-  UPD     include/generated/utsversion.h
   CC      init/version-timestamp.o
   CC [M]  .module-common.o
-  CC [M]  drivers/misc/modem_v1/sec_modem_v1.mod.o
   KSYMS   .tmp_vmlinux0.kallsyms.S
   AS      .tmp_vmlinux0.kallsyms.o
   LD      .tmp_vmlinux1
-  NM      .tmp_vmlinux1.syms
-  KSYMS   .tmp_vmlinux1.kallsyms.S
-  AS      .tmp_vmlinux1.kallsyms.o
-  LD [M]  crypto/ecc.ko
   LD [M]  crypto/cmac.ko
-  LD [M]  crypto/ecdh_generic.ko
+  LD [M]  crypto/ecc.ko
   LD [M]  drivers/gpio/gpio-arizona.ko
+  LD [M]  crypto/ecdh_generic.ko
   LD [M]  drivers/pwm/pwm-samsung.ko
   LD [M]  drivers/pci/controller/dwc/pci-exynos.ko
   LD [M]  drivers/dma/pl330.ko
-  LD [M]  drivers/regulator/arizona-ldo1.ko
   LD [M]  drivers/regulator/arizona-micsupp.ko
   LD [M]  drivers/tty/serial/serial_base.ko
   LD [M]  drivers/tty/serial/samsung_tty.ko
+  LD [M]  drivers/regulator/arizona-ldo1.ko
+  LD [M]  drivers/char/hw_random/arm_smccc_trng.ko
   LD [M]  drivers/char/hw_random/rng-core.ko
   LD [M]  drivers/char/hw_random/exynos-trng.ko
-  LD [M]  drivers/char/hw_random/arm_smccc_trng.ko
   LD [M]  drivers/gpu/drm/scheduler/gpu-sched.ko
   LD [M]  drivers/gpu/drm/panfrost/panfrost.ko
   LD [M]  drivers/base/regmap/regmap-spi.ko
@@ -94,16 +66,16 @@ make[1]: Entering directory '/build'
   LD [M]  drivers/media/mc/mc.ko
   LD [M]  drivers/media/v4l2-core/v4l2-async.ko
   LD [M]  drivers/media/v4l2-core/v4l2-cci.ko
-  LD [M]  drivers/media/v4l2-core/v4l2-dv-timings.ko
   LD [M]  drivers/media/v4l2-core/v4l2-fwnode.ko
+  LD [M]  drivers/media/v4l2-core/v4l2-dv-timings.ko
   LD [M]  drivers/media/v4l2-core/videodev.ko
   LD [M]  drivers/cpufreq/cpufreq-dt.ko
   LD [M]  drivers/iio/buffer/industrialio-triggered-buffer.ko
   LD [M]  drivers/iio/buffer/kfifo_buf.ko
   LD [M]  drivers/iio/imu/st_lsm6dsx/st_lsm6dsx.ko
   LD [M]  drivers/iio/imu/st_lsm6dsx/st_lsm6dsx_i2c.ko
-  LD [M]  drivers/iio/magnetometer/yamaha-yas530.ko
   LD [M]  drivers/iio/imu/st_lsm6dsx/st_lsm6dsx_spi.ko
+  LD [M]  drivers/iio/magnetometer/yamaha-yas530.ko
   LD [M]  drivers/bluetooth/hci_uart.ko
   LD [M]  drivers/bluetooth/btbcm.ko
   LD [M]  sound/core/snd.ko
@@ -111,8 +83,8 @@ make[1]: Entering directory '/build'
   LD [M]  sound/core/snd-pcm.ko
   LD [M]  sound/core/snd-pcm-dmaengine.ko
   LD [M]  sound/soc/snd-soc-core.ko
-  LD [M]  sound/soc/codecs/snd-soc-arizona.ko
   LD [M]  sound/soc/codecs/snd-soc-hdmi-codec.ko
+  LD [M]  sound/soc/codecs/snd-soc-arizona.ko
   LD [M]  sound/soc/codecs/snd-soc-wm8998.ko
   LD [M]  sound/soc/samsung/snd-soc-s3c-dma.ko
   LD [M]  sound/soc/samsung/snd-soc-i2s.ko
@@ -124,6 +96,9 @@ make[1]: Entering directory '/build'
   LD [M]  net/bluetooth/bnep/bnep.ko
   LD [M]  net/bluetooth/hidp/hidp.ko
   LD [M]  net/rfkill/rfkill.ko
+  NM      .tmp_vmlinux1.syms
+  KSYMS   .tmp_vmlinux1.kallsyms.S
+  AS      .tmp_vmlinux1.kallsyms.o
   LD      .tmp_vmlinux2
   NM      .tmp_vmlinux2.syms
   KSYMS   .tmp_vmlinux2.kallsyms.S
