@@ -8,3 +8,11 @@ CONFIG_INITRAMFS_COMPRESSION_GZIP=y
 CONFIG_ARM64_EXYNOS5433_SUSPEND=y
 # 2.1.0: 32-bit user space (AArch32 EL0), for Waydroid's arm64 image, which runs 32-bit services (boringssl_self_test32, zygote64_32) and 32-bit apps.
 CONFIG_COMPAT=y
+# 2026-11-27: cpuidle without PSCI, C2 per core through the monitor (patch 0011,
+# drivers/cpuidle/cpuidle-exynos5433.c), registered at boot with cpuidle_exynos5433.enable=1.
+CONFIG_CPU_IDLE=y
+CONFIG_CPU_IDLE_GOV_MENU=y
+CONFIG_ARM64_EXYNOS5433_CPUIDLE=y
+# 2026-11-27: the energy model, for energy-aware scheduling (patch 0012: each CPU node's
+# dynamic-power-coefficient, measured on the tablet; cpufreq-dt registers one perf domain per cluster).
+CONFIG_ENERGY_MODEL=y

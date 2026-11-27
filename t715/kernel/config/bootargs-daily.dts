@@ -2,12 +2,15 @@
 /plugin/;
 /* the daily boot arguments of the arm64 system (omarchy-tab-s2's arm64/docs/ROOTFS.md). "quiet" is console loglevel 4:
    the boot mark t715-kboot-mark writes at level 3 still reaches the sec_log console, which the
-   loader's ledger reads; "splash" for Plymouth, the cursor hidden until it starts. */
+   loader's ledger reads; "splash" for Plymouth, the cursor hidden until it starts.
+   Since 2026-11-27: C2 from boot (cpuidle_exynos5433.enable=1, ../docs/CPUIDLE.md), the A57
+   hot-unplug the image's t715-keys uses while the screen is dark (smp_exynos5433.hotplug=1), and
+   unbound work queued on the CPUs the scheduler prefers (workqueue.power_efficient=1). */
 / {
     fragment@0 {
         target-path = "/chosen";
         __overlay__ {
-            bootargs = "console=sec_log sec_log=0x200000@0x26000000 console=tty0 quiet splash vt.global_cursor_default=0 printk.devkmsg=on clk_ignore_unused pd_ignore_unused panic=10 s3c2410_wdt.tmr_atboot=1 watchdog.handle_boot_enabled=1 watchdog.open_timeout=120 t715.persist=omarchy-arm64 exynos5433_sleep=dryrun";
+            bootargs = "console=sec_log sec_log=0x200000@0x26000000 console=tty0 quiet splash vt.global_cursor_default=0 printk.devkmsg=on clk_ignore_unused pd_ignore_unused panic=10 s3c2410_wdt.tmr_atboot=1 watchdog.handle_boot_enabled=1 watchdog.open_timeout=120 t715.persist=omarchy-arm64 exynos5433_sleep=dryrun cpuidle_exynos5433.enable=1 smp_exynos5433.hotplug=1 workqueue.power_efficient=1";
         };
     };
 };

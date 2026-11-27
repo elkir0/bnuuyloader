@@ -1,0 +1,592 @@
+From e92b0c965eb1f7e5c25848e2ecc4f2d8343eacf4 Mon Sep 17 00:00:00 2001
+From: elkir0 <elkir0@users.noreply.github.com>
+Date: Fri, 27 Nov 2026 12:00:00 +0000
+Subject: [PATCH] arm64: exynos5433: cpuidle C2 per core without PSCI
+
+The firmware offers no PSCI, so neither cpuidle-psci nor cpuidle-arm can
+go deeper than WFI.  exynos5433_c2_suspend() is the vendor kernel's C2 for
+the calling CPU: the resume address and DIRECTGO magic at sysram-ns +
+0x24/+0x20, bit 3 (C2) in the core's flag word, then inside cpu_suspend()
+the core's local power request off and the monitor's SAVE(CORE, IDLE) and
+SHUTDOWN(CORE, IDLE).  The monitor sends a core whose flag has bit 3 to
++0x24, never to the secondaries' boot register.  An interrupt already
+pending is an early wake-up: the finisher returns 1 and the power request
+is set back by hand.  The boot CPU is refused (its warm boot reruns the
+monitor's cold init).
+
+drivers/cpuidle/cpuidle-exynos5433.c registers three drivers: CPU0 WFI
+only, the A53s WFI and C2 (750 us), the A57s WFI and C2 (2000 us), exit
+latency 150 us, entered with CPU_PM_CPU_IDLE_ENTER_PARAM_RCU since arm64's
+cpu_suspend() does the context tracking itself.  Off until
+cpuidle_exynos5433.enable=1 (late_initcall) or its sysfs switch.
+
+exynos5433_cpu_boot() also counts a core's arrival in the kernel as
+powered: with C2 on, a core brought online can reach C2 before the boot
+poll reads the PMU, which then saw it off for 10 ms and failed the
+bring-up (SMP_FAILED until the next boot).
+
+c2wake (a test hook, like c2test): one secondary into C2, an IPI, and a
+wait for it to come back by itself.
+
+On the SM-T715, 2026-11-27: c2wake 70 of 70 on cores 1-7 (down in about
+50 us, back 60-70 us after the IPI); about 100 mW less with the screen on
+and idle (2.33 W to 2.23 W, two pairs of 150 s phases on battery); 20
+cycles of CPUs 7-4 offline and back with C2 on, none failed (62 of the 80
+power-ups found the core already back in C2); from boot, no warning.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/include/asm/exynos5433.h  |  16 ++
+ arch/arm64/kernel/smp_exynos5433.c   | 256 ++++++++++++++++++++++++++-
+ drivers/cpuidle/Kconfig.arm          |  11 ++
+ drivers/cpuidle/Makefile             |   1 +
+ drivers/cpuidle/cpuidle-exynos5433.c | 196 ++++++++++++++++++++
+ 5 files changed, 478 insertions(+), 2 deletions(-)
+ create mode 100644 arch/arm64/include/asm/exynos5433.h
+ create mode 100644 drivers/cpuidle/cpuidle-exynos5433.c
+
+diff --git a/arch/arm64/include/asm/exynos5433.h b/arch/arm64/include/asm/exynos5433.h
+new file mode 100644
+index 000000000..7a7f18bb4
+--- /dev/null
++++ b/arch/arm64/include/asm/exynos5433.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Exynos 5433 without PSCI: what arch/arm64/kernel/smp_exynos5433.c offers
++ * the cpuidle driver (drivers/cpuidle/cpuidle-exynos5433.c).
++ */
++#ifndef __ASM_EXYNOS5433_H
++#define __ASM_EXYNOS5433_H
++
++/*
++ * Stock's per-core C2 for the calling CPU, through the secure monitor: 0
++ * after a power-down and a wake-up, 1 after an early wake-up, -ENODEV when
++ * C2 is not available on this CPU (the boot CPU, or no secondary set up).
++ */
++int exynos5433_c2_suspend(int state);
++
++#endif /* __ASM_EXYNOS5433_H */
+diff --git a/arch/arm64/kernel/smp_exynos5433.c b/arch/arm64/kernel/smp_exynos5433.c
+index 6feee79db..d72922493 100644
+--- a/arch/arm64/kernel/smp_exynos5433.c
++++ b/arch/arm64/kernel/smp_exynos5433.c
+@@ -38,6 +38,7 @@
+ #include <asm/cacheflush.h>
+ #include <asm/cpu_ops.h>
+ #include <asm/cputype.h>
++#include <asm/exynos5433.h>
+ #include <asm/suspend.h>
+ 
+ extern char exynos5433_smp_entry[];		/* AArch32: what the boot register gets */
+@@ -409,11 +410,18 @@ static int exynos5433_cpu_boot(unsigned int cpu)
+ 		 * 32-bit kernel keeps it (platsmp.c:655-659)
+ 		 */
+ 		ms = 0;
+-		while (!exynos5433_core_powered(idx) && ms < 10) {
++		while (!exynos5433_core_powered(idx) &&
++		       !READ_ONCE(exynos5433_arrived) && ms < 10) {
+ 			mdelay(1);
+ 			ms++;
+ 		}
+-		if (!exynos5433_core_powered(idx)) {
++		/*
++		 * A core already in the kernel counts as powered.  With cpuidle
++		 * on, it can reach its idle loop and power itself down in C2
++		 * between two of these reads: on 2026-11-27 CPU5 booted, then
++		 * this loop read its core off ten times and failed the start.
++		 */
++		if (!exynos5433_core_powered(idx) && !READ_ONCE(exynos5433_arrived)) {
+ 			pr_err("EXYNOS5433: CPU%u: core power-up timed out\n", cpu);
+ 			ret = -ETIMEDOUT;
+ 			goto fail;
+@@ -747,6 +755,250 @@ static const struct kernel_param_ops exynos5433_c2test_ops = {
+ 	.set	= exynos5433_c2test_set,
+ };
+ module_param_cb(c2test, &exynos5433_c2test_ops, NULL, 0200);
++
++/*
++ * c2wake: the question a cpuidle driver hangs on.  Does a core that the
++ * monitor powered down in stock's C2 come back by itself when an interrupt
++ * reaches it?  c2test powers the core on by hand; an idle state cannot.
++ *
++ * Stock's C2 (cpuidle-exynos5433.c, exynos_enter_c2() and c2_finisher():
++ * research/cpuidle/FINDINGS.md of the 32-bit port, section 1.2): the resume
++ * address and its magic in sysram-ns (DIRECTGO, +0x24 and +0x20), the
++ * core's C2_STATE boot flag (bit 3), the core's local power off in the PMU,
++ * then inside cpu_suspend() the monitor's SAVE(CORE) and SHUTDOWN(CORE).
++ * Here the resume address is exynos5433_resume_entry, the AArch32 stub that
++ * c2test and a system sleep come back through, and the monitor's boot
++ * register points there too while the test runs, so that every way back
++ * leads to cpu_resume.
++ *
++ * CPU0 waits until the PMU shows the core off, sends it an IPI and waits up
++ * to 100 ms for it to come back by itself.  If it does not, CPU0 powers it
++ * on by hand, as c2test does, so a failed try costs nothing but the answer.
++ * The log says which: "woke by itself" or "powered on by hand", with the
++ * PMU registers of the core after it is back.
++ *
++ *   echo N > /sys/module/smp_exynos5433/parameters/c2wake   (N: a CPU, 1-7)
++ */
++#define EXYNOS5433_SMC_CMD_SAVE			(-6)
++#define EXYNOS5433_DIRECTGO_FLAG_OFFSET		0x20
++#define EXYNOS5433_DIRECTGO_ADDR_OFFSET		0x24
++#define EXYNOS5433_DIRECTGO_MAGIC		0xfcba0d10
++#define EXYNOS5433_BOOT_FLAG_C2			BIT(3)
++
++static struct cpu_stop_work exynos5433_c2w_stop;
++static int exynos5433_c2w_result;
++/* the core's PMU CONFIGURATION as it finds it back in the kernel */
++static u32 exynos5433_c2w_conf_back;
++
++static int exynos5433_c2w_finisher(unsigned long idx)
++{
++	struct arm_smccc_res res;
++	u32 val;
++
++	val = exynos5433_pmu_read(EXYNOS_ARM_CORE_CONFIGURATION(idx));
++	val &= ~EXYNOS5433_CORE_PWR_EN;
++	exynos5433_pmu_write(val, EXYNOS_ARM_CORE_CONFIGURATION(idx));
++	dsb(sy);
++	arm_smccc_smc(exynos5433_smc_id(EXYNOS5433_SMC_CMD_SAVE),
++		      EXYNOS5433_OP_TYPE_CORE, EXYNOS5433_SMC_POWERSTATE_IDLE,
++		      0, 0, 0, 0, 0, &res);
++	arm_smccc_smc(exynos5433_smc_id(EXYNOS5433_SMC_CMD_SHUTDOWN),
++		      EXYNOS5433_OP_TYPE_CORE, EXYNOS5433_SMC_POWERSTATE_IDLE,
++		      0, 0, 0, 0, 0, &res);
++	return 1;			/* came back: the core stayed powered */
++}
++
++static int exynos5433_c2w_fn(void *arg)
++{
++	unsigned int idx = exynos5433_pmu_core(read_cpuid_mpidr());
++	int ret;
++
++	u32 conf;
++
++	local_irq_disable();
++	ret = cpu_pm_enter();
++	if (!ret) {
++		ret = cpu_suspend(idx, exynos5433_c2w_finisher);
++		/*
++		 * Back, by whatever way: the local power request must be on
++		 * again before this core's next WFI, or the PMU could take
++		 * it down there with no monitor call (stock's
++		 * exynos5433_cpu_up(); whether the PMU sets it back by itself
++		 * on a wake-up is part of what the log shows).
++		 */
++		conf = exynos5433_pmu_read(EXYNOS_ARM_CORE_CONFIGURATION(idx));
++		WRITE_ONCE(exynos5433_c2w_conf_back, conf);
++		if ((conf & EXYNOS5433_CORE_PWR_EN) != EXYNOS5433_CORE_PWR_EN)
++			exynos5433_pmu_write(conf | EXYNOS5433_CORE_PWR_EN,
++					     EXYNOS_ARM_CORE_CONFIGURATION(idx));
++		cpu_pm_exit();
++	}
++	local_irq_enable();
++	WRITE_ONCE(exynos5433_c2w_result, ret);
++	return 0;
++}
++
++static int exynos5433_c2wake_set(const char *val, const struct kernel_param *kp)
++{
++	void __iomem *boot_reg = exynos5433_sysram_ns + EXYNOS5433_BOOT_ADDR_OFFSET;
++	void __iomem *dg_flag = exynos5433_sysram_ns + EXYNOS5433_DIRECTGO_FLAG_OFFSET;
++	void __iomem *dg_addr = exynos5433_sysram_ns + EXYNOS5433_DIRECTGO_ADDR_OFFSET;
++	unsigned long resume = __pa_symbol(exynos5433_resume_entry);
++	unsigned long entry = __pa_symbol(exynos5433_smp_entry);
++	u32 dg_flag_was, dg_addr_was;
++	unsigned int cpu, idx, us, i;
++	u64 t0, t_off, t_ipi = 0, t_back = 0;
++	bool by_hand = false;
++	int ret;
++
++	ret = kstrtouint(val, 0, &cpu);
++	if (ret)
++		return ret;
++	if (cpu == 0 || cpu >= nr_cpu_ids || !cpu_online(cpu) ||
++	    exynos5433_smp_state != EXYNOS5433_SMP_READY)
++		return -EINVAL;
++
++	idx = exynos5433_pmu_core(cpu_logical_map(cpu));
++	cpus_read_lock();
++	mutex_lock(&exynos5433_boot_lock);
++
++	dg_flag_was = readl(dg_flag);
++	dg_addr_was = readl(dg_addr);
++	exynos5433_show_core("c2wake before", idx);
++
++	WRITE_ONCE(exynos5433_c2w_result, -EINPROGRESS);
++	WRITE_ONCE(exynos5433_c2w_conf_back, 0);
++	writel(resume, boot_reg);
++	writel(resume, dg_addr);
++	writel(EXYNOS5433_DIRECTGO_MAGIC, dg_flag);
++	exynos5433_set_boot_flag(idx, EXYNOS5433_BOOT_FLAG_C2);
++	dsb(sy);
++
++	t0 = ktime_get_ns();
++	if (!stop_one_cpu_nowait(cpu, exynos5433_c2w_fn, NULL, &exynos5433_c2w_stop)) {
++		ret = -EBUSY;
++		goto out;
++	}
++
++	/* down: the PMU status drops (the finisher returns 1 otherwise) */
++	for (us = 0; us < 200000 && exynos5433_core_powered(idx) &&
++	     READ_ONCE(exynos5433_c2w_result) == -EINPROGRESS; us += 10)
++		udelay(10);
++	t_off = ktime_get_ns();
++	if (exynos5433_core_powered(idx)) {
++		pr_err("EXYNOS5433: c2wake CPU%u: still powered after %u us (result %d): SAVE/SHUTDOWN(CORE) did not power it down\n",
++		       cpu, us, READ_ONCE(exynos5433_c2w_result));
++		ret = -ETIMEDOUT;
++		goto wait;
++	}
++
++	/* off: an IPI, and nothing else, then wait for the core to come back */
++	udelay(1000);
++	t_ipi = ktime_get_ns();
++	arch_smp_send_reschedule(cpu);
++	for (us = 0; us < 100000 &&
++	     READ_ONCE(exynos5433_c2w_result) == -EINPROGRESS; us += 10)
++		udelay(10);
++
++	if (READ_ONCE(exynos5433_c2w_result) == -EINPROGRESS) {
++		/* not by itself: by hand, as c2test does */
++		by_hand = true;
++		pr_err("EXYNOS5433: c2wake CPU%u: not back 100 ms after the IPI (PMU core %s); powering it on by hand\n",
++		       cpu, exynos5433_core_powered(idx) ? "powered" : "off");
++		exynos5433_show_core("c2wake after the IPI", idx);
++		exynos5433_core_power_up(idx);
++		for (i = 0; i < EXYNOS5433_RELEASE_TRIES &&
++		     READ_ONCE(exynos5433_c2w_result) == -EINPROGRESS; i++) {
++			writel(resume, boot_reg);
++			dsb(sy);
++			sev();
++			udelay(10);
++		}
++	}
++	t_back = ktime_get_ns();
++wait:
++	ret = READ_ONCE(exynos5433_c2w_result);
++	exynos5433_show_core("c2wake after", idx);
++	pr_info("EXYNOS5433: c2wake CPU%u (PMU core %u): cpu_suspend() returned %d; down in %llu us; %s, %llu us after the IPI; CONFIGURATION 0x%08x on its return\n",
++		cpu, idx, ret, (t_off - t0) / 1000,
++		ret == -EINPROGRESS ? "lost" :
++		by_hand ? "powered on by hand" : "woke by itself",
++		ret == -EINPROGRESS || !t_ipi ? 0 : (t_back - t_ipi) / 1000,
++		READ_ONCE(exynos5433_c2w_conf_back));
++	if (ret == -EINPROGRESS) {
++		pr_err("EXYNOS5433: c2wake CPU%u: did not come back; that core is lost until reboot\n",
++		       cpu);
++		exynos5433_smp_state = EXYNOS5433_SMP_FAILED;
++		ret = -EIO;
++	} else if (ret) {
++		ret = -EIO;
++	}
++out:
++	exynos5433_clear_boot_flag(idx, EXYNOS5433_BOOT_FLAG_C2);
++	writel(dg_flag_was, dg_flag);
++	writel(dg_addr_was, dg_addr);
++	writel(entry, boot_reg);
++	mutex_unlock(&exynos5433_boot_lock);
++	cpus_read_unlock();
++	return ret;
++}
++
++static const struct kernel_param_ops exynos5433_c2wake_ops = {
++	.set	= exynos5433_c2wake_set,
++};
++module_param_cb(c2wake, &exynos5433_c2wake_ops, NULL, 0200);
++
++/*
++ * Per-core C2 for cpuidle (drivers/cpuidle/cpuidle-exynos5433.c): stock's
++ * exynos_enter_c2() for one core, as c2wake proved it on the SM-T715
++ * (2026-11-27: seventy tries on cores 1-7, every core back by itself, on
++ * the IPI or on its own interrupts, down in about 50 us and back in about
++ * 60-70 us; an interrupt already pending makes the monitor return without
++ * a power-down, the early wake-up stock handles too).
++ *
++ * The monitor's stub sends a core whose flag has bit 3 to the address at
++ * sysram-ns + 0x24, and only then (docs/arm64-monitor-smc.md of the port,
++ * section 5.3); a system sleep resets that word, so it is written on every
++ * entry.  The boot register at + 0x1c, which starts the secondaries, is
++ * never touched here.  Not for the boot CPU: its warm boot reruns the cold
++ * init unless its flag word is exactly 8 (same document, section 2).
++ *
++ * Called through CPU_PM_CPU_IDLE_ENTER(): interrupts masked, between
++ * cpu_pm_enter() and cpu_pm_exit(), RCU off.  Returns 0 after a power-down
++ * and a wake-up, 1 after an early wake-up (the core stayed powered),
++ * -ENODEV when C2 is not available on this CPU.
++ */
++int __cpuidle exynos5433_c2_suspend(int state)
++{
++	unsigned int idx;
++	u32 conf;
++	int ret;
++
++	if (exynos5433_smp_state != EXYNOS5433_SMP_READY || !smp_processor_id())
++		return -ENODEV;
++
++	idx = exynos5433_pmu_core(read_cpuid_mpidr());
++	writel_relaxed(__pa_symbol(exynos5433_resume_entry),
++		       exynos5433_sysram_ns + EXYNOS5433_DIRECTGO_ADDR_OFFSET);
++	writel_relaxed(EXYNOS5433_DIRECTGO_MAGIC,
++		       exynos5433_sysram_ns + EXYNOS5433_DIRECTGO_FLAG_OFFSET);
++	exynos5433_set_boot_flag(idx, EXYNOS5433_BOOT_FLAG_C2);
++
++	ret = cpu_suspend(idx, exynos5433_c2w_finisher);
++
++	/*
++	 * The local power request back on before the next WFI: the PMU does
++	 * it after a power-down, an early wake-up leaves it off (c2wake:
++	 * CONFIGURATION 0x80000000 on those returns, stock's
++	 * exynos5433_cpu_up() on ret != 0).
++	 */
++	conf = exynos5433_pmu_read(EXYNOS_ARM_CORE_CONFIGURATION(idx));
++	if ((conf & EXYNOS5433_CORE_PWR_EN) != EXYNOS5433_CORE_PWR_EN)
++		exynos5433_pmu_write(conf | EXYNOS5433_CORE_PWR_EN,
++				     EXYNOS_ARM_CORE_CONFIGURATION(idx));
++	exynos5433_clear_boot_flag(idx, EXYNOS5433_BOOT_FLAG_C2);
++	return ret;
++}
+ #endif /* CONFIG_ARM64_EXYNOS5433_SUSPEND */
+ #endif /* CONFIG_HOTPLUG_CPU */
+ 
+diff --git a/drivers/cpuidle/Kconfig.arm b/drivers/cpuidle/Kconfig.arm
+index a1ee475d1..26c21adf2 100644
+--- a/drivers/cpuidle/Kconfig.arm
++++ b/drivers/cpuidle/Kconfig.arm
+@@ -14,6 +14,17 @@ config ARM_CPUIDLE
+ 	  initialized by calling the CPU operations init idle hook
+ 	  provided by architecture code.
+ 
++config ARM64_EXYNOS5433_CPUIDLE
++	bool "Exynos 5433 CPU idle without PSCI (SM-T715)"
++	depends on ARM64 && ARM64_EXYNOS5433_SUSPEND
++	select CPU_IDLE_MULTIPLE_DRIVERS
++	help
++	  WFI, and on the secondary cores the per-core power-down of the
++	  vendor kernel's C2 through the Exynos 5433 secure monitor, for a
++	  64-bit kernel on a board whose firmware offers no PSCI (the
++	  samsung,exynos5433-el2 enable method).  Off until enabled at run
++	  time: echo 1 > /sys/module/cpuidle_exynos5433/parameters/enable.
++
+ config ARM_PSCI_CPUIDLE
+ 	bool "PSCI CPU idle Driver"
+ 	depends on ARM_PSCI_FW
+diff --git a/drivers/cpuidle/Makefile b/drivers/cpuidle/Makefile
+index d103342b7..18abc38c8 100644
+--- a/drivers/cpuidle/Makefile
++++ b/drivers/cpuidle/Makefile
+@@ -23,6 +23,7 @@ obj-$(CONFIG_ARM_AT91_CPUIDLE)          += cpuidle-at91.o
+ obj-$(CONFIG_ARM_EXYNOS_CPUIDLE)        += cpuidle-exynos.o
+ obj-$(CONFIG_ARM_CPUIDLE)		+= cpuidle-arm.o
+ obj-$(CONFIG_ARM_PSCI_CPUIDLE)		+= cpuidle-psci.o
++obj-$(CONFIG_ARM64_EXYNOS5433_CPUIDLE)	+= cpuidle-exynos5433.o
+ obj-$(CONFIG_ARM_PSCI_CPUIDLE_DOMAIN)	+= cpuidle-psci-domain.o
+ obj-$(CONFIG_ARM_TEGRA_CPUIDLE)		+= cpuidle-tegra.o
+ obj-$(CONFIG_ARM_QCOM_SPM_CPUIDLE)	+= cpuidle-qcom-spm.o
+diff --git a/drivers/cpuidle/cpuidle-exynos5433.c b/drivers/cpuidle/cpuidle-exynos5433.c
+new file mode 100644
+index 000000000..b3c01b011
+--- /dev/null
++++ b/drivers/cpuidle/cpuidle-exynos5433.c
+@@ -0,0 +1,196 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Exynos 5433 CPU idle without PSCI (Samsung Galaxy Tab S2 8.0 LTE, SM-T715).
++ *
++ * The firmware offers no PSCI, so neither cpuidle-psci nor cpuidle-arm can
++ * reach an idle state deeper than WFI.  This driver adds the per-core
++ * power-down of the vendor kernel's C2 (cpuidle-exynos5433.c of the Samsung
++ * 3.10 kernel), entered through the secure monitor by
++ * exynos5433_c2_suspend() (arch/arm64/kernel/smp_exynos5433.c), which the
++ * c2wake test proved on the tablet on 2026-11-27: seventy tries on cores
++ * 1-7, every core back by itself, down in about 50 us and back in about
++ * 60-70 us.
++ *
++ * Three drivers:
++ *  - CPU0, the boot CPU: WFI only (a warm boot of the boot CPU reruns the
++ *    monitor's cold init);
++ *  - the A53 cores of its cluster: WFI and C2, target residency 750 us;
++ *  - the A57 cores: WFI and C2, target residency 2000 us.
++ * The residencies are stock's (cpuidle-exynos5433.c:432-479); the exit
++ * latency is the measured power-down and wake-up with some room.  No
++ * local-timer-stop: the per-CPU MCT comparators sit outside the cores, and
++ * cores in C2 woke on their own interrupts in the test.
++ *
++ * Off until asked for:
++ *   echo 1 > /sys/module/cpuidle_exynos5433/parameters/enable
++ * or cpuidle_exynos5433.enable=1 on the command line (registered at
++ * late_initcall then), so that a kernel whose C2 misbehaves still boots.
++ * Once registered, a state can be switched off per CPU in sysfs
++ * (/sys/devices/system/cpu/cpuN/cpuidle/stateM/disable).
++ */
++
++#include <linux/cpu.h>
++#include <linux/cpu_pm.h>
++#include <linux/cpuidle.h>
++#include <linux/cpumask.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/moduleparam.h>
++#include <linux/mutex.h>
++#include <linux/sysfs.h>
++
++#include <asm/cpuidle.h>
++#include <asm/cputype.h>
++#include <asm/exynos5433.h>
++#include <asm/smp_plat.h>
++
++/*
++ * The _RCU form, as cpuidle-psci's: C2 goes through arm64's cpu_suspend(),
++ * which itself tells context tracking that the CPU goes idle
++ * (ct_cpuidle_enter()), hence CPUIDLE_FLAG_RCU_IDLE on C2.  The plain form
++ * would enter it a second time: the WARN at context_tracking.c:128 on the
++ * first C2 entry of each A57, seen on the tablet on 2026-11-27.  WFI (idx 0)
++ * has no flag, so the cpuidle core does it around cpu_do_idle().
++ */
++static __cpuidle int exynos5433_enter(struct cpuidle_device *dev,
++				      struct cpuidle_driver *drv, int idx)
++{
++	return CPU_PM_CPU_IDLE_ENTER_PARAM_RCU(exynos5433_c2_suspend, idx, idx);
++}
++
++#define EXYNOS5433_WFI_STATE {						\
++	.enter			= exynos5433_enter,			\
++	.exit_latency		= 1,					\
++	.target_residency	= 1,					\
++	.name			= "WFI",				\
++	.desc			= "ARM WFI",				\
++}
++
++#define EXYNOS5433_C2_STATE(residency) {				\
++	.enter			= exynos5433_enter,			\
++	.exit_latency		= 150,					\
++	.target_residency	= residency,				\
++	.flags			= CPUIDLE_FLAG_RCU_IDLE,		\
++	.name			= "C2",					\
++	.desc			= "core off, monitor SAVE+SHUTDOWN",	\
++}
++
++static struct cpuidle_driver exynos5433_idle_boot = {
++	.name		= "exynos5433_idle_boot",
++	.states		= { EXYNOS5433_WFI_STATE },
++	.state_count	= 1,
++};
++
++static struct cpuidle_driver exynos5433_idle_a53 = {
++	.name		= "exynos5433_idle_a53",
++	.states		= { EXYNOS5433_WFI_STATE, EXYNOS5433_C2_STATE(750) },
++	.state_count	= 2,
++};
++
++static struct cpuidle_driver exynos5433_idle_a57 = {
++	.name		= "exynos5433_idle_a57",
++	.states		= { EXYNOS5433_WFI_STATE, EXYNOS5433_C2_STATE(2000) },
++	.state_count	= 2,
++};
++
++static struct cpumask exynos5433_boot_mask, exynos5433_a53_mask, exynos5433_a57_mask;
++static DEFINE_MUTEX(exynos5433_idle_lock);
++static bool exynos5433_idle_wanted, exynos5433_idle_registered;
++
++/* The boot CPU's cluster is the A53 one on this SoC (MPIDR 0x100). */
++static int exynos5433_idle_register(void)
++{
++	u64 boot_cluster = MPIDR_AFFINITY_LEVEL(cpu_logical_map(0), 1);
++	int cpu, ret;
++
++	for_each_possible_cpu(cpu) {
++		if (!cpu)
++			cpumask_set_cpu(cpu, &exynos5433_boot_mask);
++		else if (MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 1) == boot_cluster)
++			cpumask_set_cpu(cpu, &exynos5433_a53_mask);
++		else
++			cpumask_set_cpu(cpu, &exynos5433_a57_mask);
++	}
++	exynos5433_idle_boot.cpumask = &exynos5433_boot_mask;
++	exynos5433_idle_a53.cpumask = &exynos5433_a53_mask;
++	exynos5433_idle_a57.cpumask = &exynos5433_a57_mask;
++
++	ret = cpuidle_register(&exynos5433_idle_boot, NULL);
++	if (ret)
++		goto fail;
++	if (!cpumask_empty(&exynos5433_a53_mask)) {
++		ret = cpuidle_register(&exynos5433_idle_a53, NULL);
++		if (ret)
++			goto fail_boot;
++	}
++	if (!cpumask_empty(&exynos5433_a57_mask)) {
++		ret = cpuidle_register(&exynos5433_idle_a57, NULL);
++		if (ret)
++			goto fail_a53;
++	}
++	pr_info("exynos5433 cpuidle: WFI on CPU%*pbl, WFI and C2 on CPU%*pbl (A53) and CPU%*pbl (A57)\n",
++		cpumask_pr_args(&exynos5433_boot_mask),
++		cpumask_pr_args(&exynos5433_a53_mask),
++		cpumask_pr_args(&exynos5433_a57_mask));
++	return 0;
++
++fail_a53:
++	if (!cpumask_empty(&exynos5433_a53_mask))
++		cpuidle_unregister(&exynos5433_idle_a53);
++fail_boot:
++	cpuidle_unregister(&exynos5433_idle_boot);
++fail:
++	pr_err("exynos5433 cpuidle: not registered (%d)\n", ret);
++	return ret;
++}
++
++static int exynos5433_idle_enable_set(const char *val, const struct kernel_param *kp)
++{
++	bool on;
++	int ret;
++
++	ret = kstrtobool(val, &on);
++	if (ret)
++		return ret;
++	if (!on)
++		return -EINVAL;	/* off: the per-state disable in sysfs */
++
++	mutex_lock(&exynos5433_idle_lock);
++	if (system_state != SYSTEM_RUNNING) {
++		/* the command line: registered at late_initcall */
++		exynos5433_idle_wanted = true;
++	} else if (!exynos5433_idle_registered) {
++		ret = exynos5433_idle_register();
++		if (!ret)
++			exynos5433_idle_registered = true;
++	}
++	mutex_unlock(&exynos5433_idle_lock);
++	return ret;
++}
++
++static int exynos5433_idle_enable_get(char *buf, const struct kernel_param *kp)
++{
++	return sysfs_emit(buf, "%d\n", READ_ONCE(exynos5433_idle_registered));
++}
++
++static const struct kernel_param_ops exynos5433_idle_enable_ops = {
++	.set	= exynos5433_idle_enable_set,
++	.get	= exynos5433_idle_enable_get,
++};
++module_param_cb(enable, &exynos5433_idle_enable_ops, NULL, 0644);
++MODULE_PARM_DESC(enable, "register the C2 idle state (1); off by default");
++
++static int __init exynos5433_idle_late(void)
++{
++	int ret = 0;
++
++	mutex_lock(&exynos5433_idle_lock);
++	if (exynos5433_idle_wanted && !exynos5433_idle_registered) {
++		ret = exynos5433_idle_register();
++		if (!ret)
++			exynos5433_idle_registered = true;
++	}
++	mutex_unlock(&exynos5433_idle_lock);
++	return ret;
++}
++late_initcall(exynos5433_idle_late);
+-- 
+2.52.0
+
