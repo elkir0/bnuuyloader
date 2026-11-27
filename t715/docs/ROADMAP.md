@@ -113,7 +113,8 @@ Legend: **done** (proven on the tablet), **built** (works on the Mac, not run on
 | LTE modem, calls, SMS | `SEC_MODEM_V1` depends on ARM | port the driver to arm64 | the driver and the CP: **done** (../kernel/patches/0009, Milestone 3); calls and SMS: **open**, they need a SIM |
 | A57 above 1.2 GHz | stage 2 of `CPUFREQ.md` not run on arm64 | the same protocol, owner present | **open** |
 | Android apps | the 32-bit Waydroid image cannot run (no COMPAT) | Waydroid's arm64 Android image; it runs 32-bit services (`boringssl_self_test32`, `zygote64_32`) and 32-bit apps, so the kernel needs `COMPAT` | **done** (2026-11-26, omarchy-tab-s2 2.1.0): `COMPAT` is on in the kernel; Waydroid is in omarchy-tab-s2's image |
-| A57 hot-unplug | ARM32 code | an arm64 `cpu_die` for the method | in the kernel: **done** (2026-11-26, ../kernel/patches/0010: CPU7, the A57 cluster, then all seven secondaries down and back, four rounds; by hand once `/sys/module/smp_exynos5433/parameters/hotplug` is 1). The A57 offline while the screen is dark, as on 32 bits: **open** (the image's `t715-keys` leaves it off on arm64) |
+| A57 hot-unplug | ARM32 code | an arm64 `cpu_die` for the method | in the kernel: **done** (2026-11-26, ../kernel/patches/0010: CPU7, the A57 cluster, then all seven secondaries down and back, four rounds; by hand once `/sys/module/smp_exynos5433/parameters/hotplug` is 1). The A57 offline while the screen is dark: **done** (2026-11-27): `smp_exynos5433.hotplug=1` in the daily arguments and the image's `60-t715-big-cores.rules`; 105 mW less with the screen dark (CPUIDLE.md) |
+| energy-aware scheduling | no energy model | `dynamic-power-coefficient` measured, `CONFIG_ENERGY_MODEL` (patch 0012) | **done** (2026-11-27): about 76 mW less under a UI-like load, heavy work unchanged (ENERGY-MODEL.md) |
 
 What the sleep leaves open:
 
@@ -121,7 +122,8 @@ What the sleep leaves open:
   and S-Boot booted BOOT. The root powers the chip down before each sleep. **open**.
 - The power the tablet draws asleep on arm64, against the 32-bit port's. **open**.
 - A secondary's power-down as an idle state (cpuidle): `c2test` shows the way back works (CPU1 down
-  in 73 us, back 81 us after power-on), and no idle driver uses it. **open**.
+  in 73 us, back 81 us after power-on). **done** (2026-11-27): C2 per core from boot, about 100 mW
+  less with the screen on (CPUIDLE.md, ../kernel/patches/0011).
 
 ## Milestone 5: a release
 
@@ -156,6 +158,6 @@ device's own modem files, and one that carries the time zone and language over; 
 charger (it needs the owner's charger); the first Panfrost → exynos-drm imports; an on-tablet way to
 boot BOOT's system once; pstore archiving; the user's
 password for a root installed by hand; the camera userspace; `schedutil` under real use, idle power
-and the battery heat guard. Milestone 4: the A57 above 1.2 GHz; the A57 offline while the screen is
-dark; calls and SMS (a SIM); a sleep with the Wi-Fi chip left up; the power drawn asleep; cpuidle.
-Milestone 5: the cpufreq tables following the chip's fuses.
+and the battery heat guard. Milestone 4: the A57 above 1.2 GHz; calls and SMS (a SIM); a sleep
+with the Wi-Fi chip left up; the power drawn asleep. Milestone 5: the cpufreq tables following
+the chip's fuses.

@@ -4,10 +4,11 @@ What a Linux kernel needs to boot on the Galaxy Tab S2 8.0 (SM-T715) in 64 bits,
 loader of [../](../README.md).
 
 The tree is the kernel tree of [omarchy-tab-s2](https://github.com/elkir0/omarchy-tab-s2): Linux
-v6.12.114 plus its patch series, on the branch of its 1.0.5 release. The ten patches of `patches/`
-go on top of it, in their order, with `git am`. The kernel that runs on the tablet is
-`6.12.114-00106-gd30e37ad41ab`: that tree with the ten patches, built with the configuration of
-`config/` (in the fork). It is the kernel of omarchy-tab-s2 2.1.0 (2026-11-26).
+v6.12.114 plus its patch series, on the branch of its 1.0.5 release. The patches of `patches/` go
+on top of it, in their order, with `git am`. The kernel of omarchy-tab-s2 2.1.0 (2026-11-26) is
+`6.12.114-00106-gd30e37ad41ab`: that tree with the first ten patches, built with the
+configuration of `config/` (in the fork) as it was then. `0011` and `0012` (2026-11-27) are in no
+release yet.
 
 ## The patches
 
@@ -23,6 +24,8 @@ go on top of it, in their order, with `git am`. The kernel that runs on the tabl
 | `0008` | **arm64: dts: exynos: gts28ltexx: no System MMU for a 64-bit kernel.** On arm64 the kernel selects `OF_IOMMU`. With no System MMU driver built, DECON and three other masters waited for the deferred-probe timeout, 16.9 s into the boot: a black screen behind the bootloader's logo. The twelve System MMUs are disabled; DECON binds at 0.5 s. |
 | `0009` | **misc: modem_v1: build on arm64.** The driver has no 32-bit-only code; a Kconfig dependency and a `sizeof(size_t) == 4` assertion kept it to ARM. |
 | `0010` | **arm64: exynos5433: CPU hot-unplug and suspend to RAM without PSCI.** Hot-unplug is the 32-bit kernel's `exynos5433_cpu_die()`, from AArch64 EL1: the HOTPLUG boot flag, the core's power off in the PMU, then the monitor's SHUTDOWN call; a core powered back on comes in again through the AArch32 stub of `0002`, and `cpu_kill` polls the PMU status. By hand it stays refused until `/sys/module/smp_exynos5433/parameters/hotplug` is 1; a system sleep may. Suspend to RAM (`CONFIG_ARM64_EXYNOS5433_SUSPEND`): the 32-bit kernel's PMU and clock programming, unchanged; the monitor's SLEEP call, from AArch64, inside `cpu_suspend()`; and the way back through a second twelve-word AArch32 stub, `exynos5433_resume_entry`, which the firmware jumps to on a wake-up: `SMC 0x82000400` again, EL2 set up as for a secondary, `eret` to `cpu_resume` at EL1. `exynos5433_sleep=on` or `=dryrun` and the one-shot arm switch work as on 32 bits. `c2test` powers one secondary down and back through the resume stub while the system runs. |
+| `0011` | **arm64: exynos5433: cpuidle C2 per core without PSCI.** The vendor kernel's per-core power-down as an idle state. `exynos5433_c2_suspend()` writes the resume address, the DIRECTGO magic and the core's C2 flag, then calls the monitor's SAVE and SHUTDOWN inside `cpu_suspend()`. `drivers/cpuidle/cpuidle-exynos5433.c` (`CONFIG_ARM64_EXYNOS5433_CPUIDLE`) has three drivers: CPU0 WFI only, the A53s and the A57s WFI and C2. They are entered with `CPU_PM_CPU_IDLE_ENTER_PARAM_RCU`, as cpuidle-psci does. Nothing is registered without `cpuidle_exynos5433.enable=1`. The secondaries' boot poll also counts a core's arrival as powered: a core brought online could reach C2 before the poll read the PMU. `c2wake` tests a core's wake-up by itself ([../docs/CPUIDLE.md](../docs/CPUIDLE.md)). |
+| `0012` | **arm64: dts: exynos: gts28ltexx: the energy model, for EAS.** Each CPU node's `dynamic-power-coefficient`, measured on the tablet: 177 for the A53s, 648 for the A57s. With `CONFIG_ENERGY_MODEL` the scheduler runs energy-aware ([../docs/ENERGY-MODEL.md](../docs/ENERGY-MODEL.md)). |
 
 Patches `0001` to `0003`, `0005`, `0006` and `0010` are for any Exynos 5433 started this way.
 `0010` touches only `arch/arm64/kernel/`, with its entry in `arch/arm64/Kconfig` and its line in the
@@ -70,6 +73,16 @@ the loader: the system sleep is registered, and a sleep is real only once armed
 after it has powered the modem's CP and the Wi-Fi/Bluetooth chip down; a suspend that nothing
 prepared stays a dry run. With the Wi-Fi chip left up, the first real sleep never resumed: the
 board reset.
+
+Since 2026-11-27 (patches `0011` and `0012`, not yet in a release), three more:
+
+- `cpuidle_exynos5433.enable=1`: C2 per core from boot;
+- `smp_exynos5433.hotplug=1`: the A57 hot-unplug, which the image's `t715-keys` uses while the
+  screen is dark;
+- `workqueue.power_efficient=1`.
+
+The configuration adds `CONFIG_CPU_IDLE`, `CONFIG_CPU_IDLE_GOV_MENU`,
+`CONFIG_ARM64_EXYNOS5433_CPUIDLE` and `CONFIG_ENERGY_MODEL`.
 
 ## Building
 
