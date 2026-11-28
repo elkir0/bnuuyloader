@@ -49,3 +49,13 @@ CONFIG_USB_SERIAL_CH341=m
 CONFIG_USB_SERIAL_PL2303=m
 CONFIG_MEDIA_USB_SUPPORT=y
 CONFIG_USB_VIDEO_CLASS=m
+# 2026-11-28: the MFC v8 video codec (s5p-mfc, a module; the board's exynos5433-gts28ltexx-mfc.dtsi
+# feeds it ACLK_MFC_400): H.264, VP8, MPEG and VC-1 decoding for mpv and GStreamer.
+CONFIG_V4L_MEM2MEM_DRIVERS=y
+CONFIG_VIDEO_SAMSUNG_S5P_MFC=m
+# 2026-11-28: security.* extended attributes on ext4, so the root keeps file capabilities (the
+# 32-bit release builds without them; t715-golden-caps.service worked around it).
+CONFIG_EXT4_FS_SECURITY=y
+# 2026-11-28: the Capella CM36652 ambient light sensor (the board's exynos5433-gts28ltexx-als.dtsi),
+# for automatic brightness; its proximity half stays in shutdown.
+CONFIG_CM36652=m

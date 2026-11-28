@@ -1,0 +1,538 @@
+From 5d9050230b3cfb67775e8ff70ae44d44a71b813d Mon Sep 17 00:00:00 2001
+From: elkir0 <elkir0@users.noreply.github.com>
+Date: Sat, 28 Nov 2026 12:00:00 +0000
+Subject: [PATCH] iio: light: cm36652: a driver for the Capella CM36652, and
+ the Tab S2's sensor
+
+The CM36652 is a colour light and proximity sensor at 0x60 with 16-bit
+SMBus word registers; mainline's cm36651 is a different die (two
+addresses, byte registers). The new IIO driver handles its light half:
+red, green, blue and white counts, a shared integration time, and an
+illuminance from the green channel. The proximity half is put in
+shutdown at probe and resume, so its IR LED never runs. Register map and
+normal configuration from Samsung's GPL driver for the chip; the colour
+block matches the CM3323's. The integration time field is two bits (40,
+80, 160 and 320 ms): on the SM-T715 under steady light the counts
+doubled at each of those steps, and the CM3323's codes 4 and 5 read like
+0 and 1. The lux scale (0.25168 lux per green count at 40 ms) is the
+CM3323's published sensitivity, an approximation behind the cover glass.
+
+The binding is capella,cm36652.yaml. On the Galaxy Tab S2 8.0 LTE the
+sensor sits on a bit-banged bus of its own (gpd4-1 SDA, gpd4-2 SCL, as
+the stock device tree has it): the 64-bit-only fragment
+exynos5433-gts28ltexx-als.dtsi.
+
+On the SM-T715, 2026-11-28: the driver probes, reads about 20 lux in a
+room, and the image's t715-autobrightness follows it.
+---
+ .../bindings/iio/light/capella,cm36652.yaml   |  45 +++
+ .../dts/exynos/exynos5433-gts28ltexx-als.dtsi |  43 +++
+ .../boot/dts/exynos/exynos5433-gts28ltexx.dts |   1 +
+ drivers/iio/light/Kconfig                     |  12 +
+ drivers/iio/light/Makefile                    |   1 +
+ drivers/iio/light/cm36652.c                   | 347 ++++++++++++++++++
+ 6 files changed, 449 insertions(+)
+ create mode 100644 Documentation/devicetree/bindings/iio/light/capella,cm36652.yaml
+ create mode 100644 arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx-als.dtsi
+ create mode 100644 drivers/iio/light/cm36652.c
+
+diff --git a/Documentation/devicetree/bindings/iio/light/capella,cm36652.yaml b/Documentation/devicetree/bindings/iio/light/capella,cm36652.yaml
+new file mode 100644
+index 000000000..6d441a5c4
+--- /dev/null
++++ b/Documentation/devicetree/bindings/iio/light/capella,cm36652.yaml
+@@ -0,0 +1,45 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/iio/light/capella,cm36652.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Capella CM36652 I2C Proximity and Color Light sensor
++
++maintainers:
++  - elkir0 <elkir0@users.noreply.github.com>
++
++description: |
++  Color light sensor (red, green, blue and white channels) and proximity
++  sensor with its IR LED driver, at I2C address 0x60, with 16-bit SMBus word
++  registers.
++
++properties:
++  compatible:
++    const: capella,cm36652
++
++  reg:
++    maxItems: 1
++
++  vdd-supply:
++    description: Supply for the sensor.
++
++additionalProperties: false
++
++required:
++  - compatible
++  - reg
++
++examples:
++  - |
++    i2c {
++        #address-cells = <1>;
++        #size-cells = <0>;
++
++        light-sensor@60 {
++            compatible = "capella,cm36652";
++            reg = <0x60>;
++            vdd-supply = <&ldo_sensor>;
++        };
++    };
++...
+diff --git a/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx-als.dtsi b/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx-als.dtsi
+new file mode 100644
+index 000000000..d2771ddb7
+--- /dev/null
++++ b/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx-als.dtsi
+@@ -0,0 +1,43 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Samsung Galaxy Tab S2 8.0 LTE (SM-T715), 64-bit kernel: the ambient light
++ * sensor.
++ *
++ * A Capella CM36652 color light and proximity sensor at 0x60 on a
++ * bit-banged I2C bus, as in the stock tree: i2c-gpio, SDA on gpd4-1, SCL on
++ * gpd4-2, 2 us delay, both pins plain GPIO with no pull, no regulator named.
++ * cm36652.ko drives the light half only, polled.  The chip's interrupt line
++ * (gpa0-5) serves the proximity half alone, which the driver keeps in
++ * shutdown, so it is not described here.
++ */
++
++/ {
++	i2c_als: i2c-als {
++		compatible = "i2c-gpio";
++		sda-gpios = <&gpd4 1 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
++		scl-gpios = <&gpd4 2 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
++		i2c-gpio,delay-us = <2>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&als_i2c_pins>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		light-sensor@60 {
++			compatible = "capella,cm36652";
++			reg = <0x60>;
++		};
++	};
++};
++
++/*
++ * Plain GPIO with no pull, as stock sets both pins: the bus has its pull-ups
++ * on the board, which a pad pull-down would fight.
++ */
++&pinctrl_peric {
++	als_i2c_pins: als-i2c-pins {
++		samsung,pins = "gpd4-1", "gpd4-2";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_INPUT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-drv = <EXYNOS5433_PIN_DRV_FAST_SR1>;
++	};
++};
+diff --git a/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx.dts b/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx.dts
+index 044051740..3841590e6 100644
+--- a/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx.dts
++++ b/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx.dts
+@@ -15,3 +15,4 @@
+ #include "exynos5433-gts28ltexx-eas.dtsi"
+ #include "exynos5433-gts28ltexx-otg.dtsi"
+ #include "exynos5433-gts28ltexx-mfc.dtsi"
++#include "exynos5433-gts28ltexx-als.dtsi"
+diff --git a/drivers/iio/light/Kconfig b/drivers/iio/light/Kconfig
+index f2f3e4148..43deb50d3 100644
+--- a/drivers/iio/light/Kconfig
++++ b/drivers/iio/light/Kconfig
+@@ -199,6 +199,18 @@ config CM36651
+ 	  To compile this driver as a module, choose M here:
+ 	  the module will be called cm36651.
+ 
++config CM36652
++	depends on I2C
++	tristate "Capella CM36652 color light sensor"
++	help
++	  Say Y here if you want to build a driver for the ambient light
++	  half (red, green, blue and white channels) of the Capella CM36652
++	  color light and proximity sensor. The proximity half is kept
++	  powered down.
++
++	  To compile this driver as a module, choose M here: the module will
++	  be called cm36652.
++
+ config IIO_CROS_EC_LIGHT_PROX
+ 	tristate "ChromeOS EC Light and Proximity Sensors"
+ 	depends on IIO_CROS_EC_SENSORS_CORE
+diff --git a/drivers/iio/light/Makefile b/drivers/iio/light/Makefile
+index 321010fc0..b4a046570 100644
+--- a/drivers/iio/light/Makefile
++++ b/drivers/iio/light/Makefile
+@@ -21,6 +21,7 @@ obj-$(CONFIG_CM3232)		+= cm3232.o
+ obj-$(CONFIG_CM3323)		+= cm3323.o
+ obj-$(CONFIG_CM3605)		+= cm3605.o
+ obj-$(CONFIG_CM36651)		+= cm36651.o
++obj-$(CONFIG_CM36652)		+= cm36652.o
+ obj-$(CONFIG_IIO_CROS_EC_LIGHT_PROX) += cros_ec_light_prox.o
+ obj-$(CONFIG_GP2AP002)		+= gp2ap002.o
+ obj-$(CONFIG_GP2AP020A00F)	+= gp2ap020a00f.o
+diff --git a/drivers/iio/light/cm36652.c b/drivers/iio/light/cm36652.c
+new file mode 100644
+index 000000000..2ed50445c
+--- /dev/null
++++ b/drivers/iio/light/cm36652.c
+@@ -0,0 +1,347 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/*
++ * Capella CM36652 color light and proximity sensor
++ *
++ * IIO driver for the ambient light half (red, green, blue and white
++ * channels) of the CM36652, 7-bit I2C address 0x60, 16-bit little-endian
++ * SMBus word registers.  Polled: the interrupt line only serves the
++ * proximity half, which is kept in shutdown so that its IR LED never runs.
++ *
++ * Register map, normal configuration and shutdown values: Samsung's GPL
++ * driver for this chip (Galaxy Note 4 Exynos kernel).  That driver never
++ * changes the color integration time and has no lux conversion, so both come
++ * from the CM3323 (also sold as the Vishay VEML6040), which is this chip's
++ * color block without the proximity half (its integration time field, two
++ * bits here, was checked on the tablet): the same configuration word at
++ * 0x00 with the same shutdown bit, the same R, G, B and W data registers at
++ * 0x08-0x0b, and reserved registers at 0x01-0x07, where the CM36652 keeps
++ * its proximity ones.
++ */
++
++#include <linux/bitfield.h>
++#include <linux/bits.h>
++#include <linux/cleanup.h>
++#include <linux/i2c.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/pm.h>
++#include <linux/regulator/consumer.h>
++
++#include <linux/iio/iio.h>
++
++#define CM36652_DRV_NAME	"cm36652"
++
++#define CM36652_REG_CS_CONF1	0x00
++#define CM36652_REG_PS_CONF1	0x03
++#define CM36652_REG_PS_CONF3	0x04
++#define CM36652_REG_RED		0x08
++#define CM36652_REG_GREEN	0x09
++#define CM36652_REG_BLUE	0x0a
++#define CM36652_REG_WHITE	0x0b
++
++/* CS_CONF1: color sensor configuration */
++#define CM36652_CS_SD		BIT(0)		/* shutdown */
++#define CM36652_CS_IT_MASK	GENMASK(5, 4)	/* integration time */
++
++/*
++ * Samsung's "enable" word for normal operation: color sensor on, every
++ * other bit clear (auto mode, shortest integration time).
++ */
++#define CM36652_CS_CONF1_NORMAL	0x0000
++
++/*
++ * Samsung's proximity "off" words: PS_CONF1 with only its shutdown bit set
++ * (the IR LED is driven only while the proximity sensor runs), PS_CONF3
++ * cleared.
++ */
++#define CM36652_PS_CONF1_OFF	0x0001
++#define CM36652_PS_CONF3_OFF	0x0000
++
++/*
++ * Integration times, indexed by the CS_IT field: 40 ms doubled at each
++ * step.  Unlike the CM3323's three bits, the field is two bits wide here:
++ * measured on the SM-T715 under steady light, IT 0-3 doubled the counts
++ * each time, and the CM3323's codes 4 and 5 read like 0 and 1.
++ */
++static const int cm36652_int_time[][2] = {
++	{ 0, 40000 },
++	{ 0, 80000 },
++	{ 0, 160000 },
++	{ 0, 320000 },
++};
++
++/*
++ * Illuminance from the green channel.  Approximation: 0.25168 lux per count
++ * at 40 ms, halved at each doubling of the integration time, is the green
++ * sensitivity published for the CM3323/VEML6040 bare die.  The CM36652 sits
++ * behind the tablet's cover glass and ink, which take part of the light, so
++ * this scale reads low until it is calibrated against a lux meter.
++ */
++#define CM36652_GREEN_ULUX_40MS	251680
++
++struct cm36652_data {
++	struct i2c_client *client;
++	/* Serializes the bus accesses and guards reg_conf. */
++	struct mutex lock;
++	u16 reg_conf;	/* CS_CONF1 when running: shutdown bit clear */
++};
++
++#define CM36652_INTENSITY_CHANNEL(_color, _addr) {			\
++	.type = IIO_INTENSITY,						\
++	.modified = 1,							\
++	.channel2 = IIO_MOD_LIGHT_##_color,				\
++	.address = _addr,						\
++	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),			\
++	.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_INT_TIME),	\
++	.info_mask_shared_by_type_available = BIT(IIO_CHAN_INFO_INT_TIME), \
++}
++
++static const struct iio_chan_spec cm36652_channels[] = {
++	CM36652_INTENSITY_CHANNEL(RED, CM36652_REG_RED),
++	CM36652_INTENSITY_CHANNEL(GREEN, CM36652_REG_GREEN),
++	CM36652_INTENSITY_CHANNEL(BLUE, CM36652_REG_BLUE),
++	CM36652_INTENSITY_CHANNEL(CLEAR, CM36652_REG_WHITE),
++	{
++		.type = IIO_LIGHT,
++		.address = CM36652_REG_GREEN,
++		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
++				      BIT(IIO_CHAN_INFO_SCALE),
++	},
++};
++
++/*
++ * Proximity half off, then the color sensor in its normal configuration.
++ * Called with the chip idle (probe) or with data->lock held (resume).
++ */
++static int cm36652_setup(struct cm36652_data *data)
++{
++	struct i2c_client *client = data->client;
++	int ret;
++
++	ret = i2c_smbus_write_word_data(client, CM36652_REG_PS_CONF1,
++					CM36652_PS_CONF1_OFF);
++	if (ret)
++		return ret;
++
++	ret = i2c_smbus_write_word_data(client, CM36652_REG_PS_CONF3,
++					CM36652_PS_CONF3_OFF);
++	if (ret)
++		return ret;
++
++	return i2c_smbus_write_word_data(client, CM36652_REG_CS_CONF1,
++					 data->reg_conf);
++}
++
++static int cm36652_shutdown(struct cm36652_data *data)
++{
++	return i2c_smbus_write_word_data(data->client, CM36652_REG_CS_CONF1,
++					 data->reg_conf | CM36652_CS_SD);
++}
++
++static void cm36652_disable(void *arg)
++{
++	struct cm36652_data *data = arg;
++	int ret;
++
++	ret = cm36652_shutdown(data);
++	if (ret)
++		dev_err(&data->client->dev, "failed to shut down: %d\n", ret);
++}
++
++static unsigned int cm36652_get_it(struct cm36652_data *data)
++{
++	return FIELD_GET(CM36652_CS_IT_MASK, data->reg_conf);
++}
++
++static int cm36652_read_raw(struct iio_dev *indio_dev,
++			    struct iio_chan_spec const *chan, int *val,
++			    int *val2, long mask)
++{
++	struct cm36652_data *data = iio_priv(indio_dev);
++	unsigned int it;
++	int ret;
++
++	guard(mutex)(&data->lock);
++
++	switch (mask) {
++	case IIO_CHAN_INFO_RAW:
++		ret = i2c_smbus_read_word_data(data->client, chan->address);
++		if (ret < 0)
++			return ret;
++
++		*val = ret;
++		return IIO_VAL_INT;
++	case IIO_CHAN_INFO_INT_TIME:
++		it = cm36652_get_it(data);
++		*val = cm36652_int_time[it][0];
++		*val2 = cm36652_int_time[it][1];
++		return IIO_VAL_INT_PLUS_MICRO;
++	case IIO_CHAN_INFO_SCALE:
++		it = cm36652_get_it(data);
++		*val = 0;
++		*val2 = CM36652_GREEN_ULUX_40MS >> it;
++		return IIO_VAL_INT_PLUS_MICRO;
++	default:
++		return -EINVAL;
++	}
++}
++
++static int cm36652_write_raw(struct iio_dev *indio_dev,
++			     struct iio_chan_spec const *chan, int val,
++			     int val2, long mask)
++{
++	struct cm36652_data *data = iio_priv(indio_dev);
++	unsigned int i;
++	u16 reg_conf;
++	int ret;
++
++	if (mask != IIO_CHAN_INFO_INT_TIME)
++		return -EINVAL;
++
++	for (i = 0; i < ARRAY_SIZE(cm36652_int_time); i++) {
++		if (val == cm36652_int_time[i][0] &&
++		    val2 == cm36652_int_time[i][1])
++			break;
++	}
++	if (i == ARRAY_SIZE(cm36652_int_time))
++		return -EINVAL;
++
++	guard(mutex)(&data->lock);
++
++	reg_conf = data->reg_conf & ~CM36652_CS_IT_MASK;
++	reg_conf |= FIELD_PREP(CM36652_CS_IT_MASK, i);
++
++	ret = i2c_smbus_write_word_data(data->client, CM36652_REG_CS_CONF1,
++					reg_conf);
++	if (ret)
++		return ret;
++
++	data->reg_conf = reg_conf;
++
++	return 0;
++}
++
++static int cm36652_read_avail(struct iio_dev *indio_dev,
++			      struct iio_chan_spec const *chan,
++			      const int **vals, int *type, int *length,
++			      long mask)
++{
++	if (mask != IIO_CHAN_INFO_INT_TIME)
++		return -EINVAL;
++
++	*vals = (const int *)cm36652_int_time;
++	*type = IIO_VAL_INT_PLUS_MICRO;
++	*length = ARRAY_SIZE(cm36652_int_time) * 2;
++
++	return IIO_AVAIL_LIST;
++}
++
++static const struct iio_info cm36652_info = {
++	.read_raw	= cm36652_read_raw,
++	.write_raw	= cm36652_write_raw,
++	.read_avail	= cm36652_read_avail,
++};
++
++static int cm36652_probe(struct i2c_client *client)
++{
++	struct device *dev = &client->dev;
++	struct cm36652_data *data;
++	struct iio_dev *indio_dev;
++	int ret;
++
++	if (!i2c_check_functionality(client->adapter,
++				     I2C_FUNC_SMBUS_WORD_DATA))
++		return -EOPNOTSUPP;
++
++	indio_dev = devm_iio_device_alloc(dev, sizeof(*data));
++	if (!indio_dev)
++		return -ENOMEM;
++
++	data = iio_priv(indio_dev);
++	i2c_set_clientdata(client, indio_dev);
++	data->client = client;
++	data->reg_conf = CM36652_CS_CONF1_NORMAL;
++
++	mutex_init(&data->lock);
++
++	ret = devm_regulator_get_enable(dev, "vdd");
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to enable vdd supply\n");
++
++	/* The chip has no ID register: check that it answers a word read. */
++	ret = i2c_smbus_read_word_data(client, CM36652_REG_CS_CONF1);
++	if (ret < 0)
++		return dev_err_probe(dev, ret, "no answer at 0x%02x\n",
++				     client->addr);
++
++	dev_dbg(dev, "CS_CONF1 0x%04x at probe\n", ret);
++
++	/*
++	 * Proximity sensor in shutdown first (PS_CONF1 shutdown bit, the IR
++	 * LED stays off), then the color sensor on.
++	 */
++	ret = cm36652_setup(data);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to configure the chip\n");
++
++	ret = devm_add_action_or_reset(dev, cm36652_disable, data);
++	if (ret)
++		return ret;
++
++	indio_dev->name = CM36652_DRV_NAME;
++	indio_dev->info = &cm36652_info;
++	indio_dev->channels = cm36652_channels;
++	indio_dev->num_channels = ARRAY_SIZE(cm36652_channels);
++	indio_dev->modes = INDIO_DIRECT_MODE;
++
++	return devm_iio_device_register(dev, indio_dev);
++}
++
++static int cm36652_suspend(struct device *dev)
++{
++	struct cm36652_data *data = iio_priv(dev_get_drvdata(dev));
++
++	guard(mutex)(&data->lock);
++
++	return cm36652_shutdown(data);
++}
++
++static int cm36652_resume(struct device *dev)
++{
++	struct cm36652_data *data = iio_priv(dev_get_drvdata(dev));
++
++	guard(mutex)(&data->lock);
++
++	/* The proximity half too, in case the chip lost power. */
++	return cm36652_setup(data);
++}
++
++static DEFINE_SIMPLE_DEV_PM_OPS(cm36652_pm_ops, cm36652_suspend,
++				cm36652_resume);
++
++static const struct i2c_device_id cm36652_id[] = {
++	{ "cm36652" },
++	{ }
++};
++MODULE_DEVICE_TABLE(i2c, cm36652_id);
++
++static const struct of_device_id cm36652_of_match[] = {
++	{ .compatible = "capella,cm36652" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, cm36652_of_match);
++
++static struct i2c_driver cm36652_driver = {
++	.driver = {
++		.name = CM36652_DRV_NAME,
++		.of_match_table = cm36652_of_match,
++		.pm = pm_sleep_ptr(&cm36652_pm_ops),
++	},
++	.probe = cm36652_probe,
++	.id_table = cm36652_id,
++};
++module_i2c_driver(cm36652_driver);
++
++MODULE_DESCRIPTION("Capella CM36652 color light sensor driver");
++MODULE_LICENSE("GPL");
+-- 
+2.52.0
+

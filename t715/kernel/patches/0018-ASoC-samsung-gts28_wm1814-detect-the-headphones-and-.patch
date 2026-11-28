@@ -1,0 +1,164 @@
+From 92060bb7048d40e43639c07507cae55e627a17ac Mon Sep 17 00:00:00 2001
+From: elkir0 <elkir0@users.noreply.github.com>
+Date: Sat, 28 Nov 2026 12:00:00 +0000
+Subject: [PATCH] ASoC: samsung: gts28_wm1814: detect the headphones and the
+ headset
+
+The machine driver never gave the WM1814 a jack, so arizona-jack stayed
+idle and nothing noticed a plug. late_probe now creates a "Headset" jack
+(headset, line out, mechanical, and the four MICD buttons as BTN_0 to
+BTN_3: mainline maps AOSP media keys only for SPI and ACPI boards) with
+the HP and Headset Mic pins, and hands it to the codec with
+snd_soc_component_set_jack(). The headset microphone gets its widget and
+route, MICBIAS1 to IN2B, and a pin switch. The card's controls are "HP
+Jack" and "Headset Mic Jack".
+
+On the SM-T715, 2026-11-28: the card registers with both controls off
+when nothing is plugged, and an input device "wm1814 Headset". A plug was
+not tried yet.
+---
+ sound/soc/samsung/gts28_wm1814.c | 71 ++++++++++++++++++++++++++++++--
+ 1 file changed, 68 insertions(+), 3 deletions(-)
+
+diff --git a/sound/soc/samsung/gts28_wm1814.c b/sound/soc/samsung/gts28_wm1814.c
+index d033ff236..d640c30ce 100644
+--- a/sound/soc/samsung/gts28_wm1814.c
++++ b/sound/soc/samsung/gts28_wm1814.c
+@@ -12,9 +12,10 @@
+  * file.  Implemented: the primary playback/capture link (codec AIF1), the
+  * speaker, headphone and main microphone paths, and the "baseband" link
+  * that carries call audio between the Shannon modem (CP) and codec AIF2
+- * without going through the AP.  Bluetooth SCO (AIF3), EAX/secondary
+- * links, sub/headset microphones, earpiece, HDMI and jack detection are
+- * left out.
++ * without going through the AP.  The headset jack is detected by the
++ * codec (MICD clamp and HPDET), which drives the "Headphones" and
++ * "Headset Mic" pins.  Bluetooth SCO (AIF3), EAX/secondary links, the
++ * sub microphone, earpiece and HDMI are left out.
+  *
+  * The baseband link is a codec-to-codec link, as in aries_wm8994.c and
+  * bells.c: the CP end is the "gts28-modem" DAI registered here, and DAPM
+@@ -30,6 +31,7 @@
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/platform_device.h>
++#include <sound/jack.h>
+ #include <sound/pcm_params.h>
+ #include <sound/soc.h>
+ 
+@@ -68,12 +70,29 @@ enum {
+ 	GTS28_LINK_MODEM,
+ };
+ 
++/*
++ * What the codec reports on the jack.  SND_JACK_MECHANICAL is set as soon
++ * as the clamp closes; the codec then measures the plug and adds
++ * SND_JACK_HEADPHONE or SND_JACK_MICROPHONE.
++ */
++#define GTS28_JACK_TYPE		(SND_JACK_HEADSET | SND_JACK_LINEOUT | \
++				 SND_JACK_MECHANICAL)
++
++/*
++ * The buttons the codec measures: the four MICD ranges of an AOSP headset
++ * (play/pause, voice command, volume up, volume down).  arizona-jack
++ * limits this to the ranges it configures.
++ */
++#define GTS28_JACK_BUTTONS	(SND_JACK_BTN_0 | SND_JACK_BTN_1 | \
++				 SND_JACK_BTN_2 | SND_JACK_BTN_3)
++
+ struct gts28_machine_priv {
+ 	struct clk *mclk;
+ 	bool mclk_enabled;
+ 	/* BIT(stream) of each modem DAI direction between hw_params and hw_free */
+ 	unsigned int modem_streams;
+ 	bool fll2_running;
++	struct snd_soc_jack jack;
+ };
+ 
+ static struct snd_soc_component *gts28_codec_component(struct snd_soc_card *card)
+@@ -519,8 +538,25 @@ static const struct snd_soc_component_driver gts28_modem_component = {
+ 	.num_dapm_routes	= ARRAY_SIZE(gts28_modem_routes),
+ };
+ 
++/*
++ * The jack pins are the widgets the codec's jack detection drives: the
++ * headphones (and the line out it reports for a high-impedance cable) and
++ * the headset microphone.  With nothing plugged in, DAPM leaves both off.
++ */
++static struct snd_soc_jack_pin gts28_jack_pins[] = {
++	{
++		.pin	= "HP",
++		.mask	= SND_JACK_HEADPHONE | SND_JACK_LINEOUT,
++	},
++	{
++		.pin	= "Headset Mic",
++		.mask	= SND_JACK_MICROPHONE,
++	},
++};
++
+ static int gts28_late_probe(struct snd_soc_card *card)
+ {
++	struct gts28_machine_priv *priv = snd_soc_card_get_drvdata(card);
+ 	struct snd_soc_pcm_runtime *rtd;
+ 	struct snd_soc_dai *aif1_dai, *aif2_dai;
+ 	int ret;
+@@ -580,6 +616,26 @@ static int gts28_late_probe(struct snd_soc_card *card)
+ 	snd_soc_dapm_ignore_suspend(&card->dapm, "HP");
+ 	snd_soc_dapm_ignore_suspend(&card->dapm, "Main Mic");
+ 
++	/*
++	 * The codec detects the headset itself (arizona-jack) once it is
++	 * given a jack; until then nothing notices a plug and the
++	 * "Headphones" switch is the only way to get sound out of it.
++	 */
++	ret = snd_soc_card_jack_new_pins(card, "Headset", GTS28_JACK_TYPE |
++					 GTS28_JACK_BUTTONS, &priv->jack,
++					 gts28_jack_pins,
++					 ARRAY_SIZE(gts28_jack_pins));
++	if (ret < 0) {
++		dev_err(card->dev, "Failed to create headset jack: %d\n", ret);
++		return ret;
++	}
++
++	ret = snd_soc_component_set_jack(aif1_dai->component, &priv->jack, NULL);
++	if (ret < 0) {
++		dev_err(card->dev, "Failed to set codec jack: %d\n", ret);
++		return ret;
++	}
++
+ 	return 0;
+ }
+ 
+@@ -588,6 +644,7 @@ static const struct snd_kcontrol_new gts28_controls[] = {
+ 	SOC_DAPM_PIN_SWITCH("HP"),
+ 	SOC_DAPM_PIN_SWITCH("SPK"),
+ 	SOC_DAPM_PIN_SWITCH("Main Mic"),
++	SOC_DAPM_PIN_SWITCH("Headset Mic"),
+ 	SOC_DAPM_PIN_SWITCH("Modem RX"),
+ 	SOC_DAPM_PIN_SWITCH("Modem TX"),
+ 	SOC_ENUM_EXT("Modem Rate", gts28_modem_rate_enum,
+@@ -599,6 +656,7 @@ static const struct snd_soc_dapm_widget gts28_dapm_widgets[] = {
+ 	SND_SOC_DAPM_HP("HP", NULL),
+ 	SND_SOC_DAPM_SPK("SPK", NULL),
+ 	SND_SOC_DAPM_MIC("Main Mic", NULL),
++	SND_SOC_DAPM_MIC("Headset Mic", NULL),
+ };
+ 
+ /* pacific_wm1814_dapm_routes[], pacific_arizona.c:861-872 */
+@@ -614,6 +672,13 @@ static const struct snd_soc_dapm_route gts28_dapm_routes[] = {
+ 	/* SEL of the main mic is connected to GND */
+ 	{ "Main Mic", NULL, "MICBIAS2" },
+ 	{ "IN1BL", NULL, "Main Mic" },
++
++	/* The headset mic is biased by MICBIAS1 (wlf,micd-configs = <0 1 0>),
++	 * as the jack detection is, and wired to the "B" side of IN2: the
++	 * codec's "IN2 Mux" must be set to "B" to reach the ADC.
++	 */
++	{ "Headset Mic", NULL, "MICBIAS1" },
++	{ "IN2B", NULL, "Headset Mic" },
+ };
+ 
+ /*
+-- 
+2.52.0
+
