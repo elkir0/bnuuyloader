@@ -250,6 +250,9 @@ for s in sorted(rel):
         elif s in fin:
             # gone from the plain translation, brought back by our own lines (COMPAT since 2.1.0)
             print("%s: gone from the plain translation, built again by our lines (%s)" % (s, fin[s]))
+    elif s in OURS and plain.get(s) == rel[s] and (fin.get(s) or "n") == OURS[s]:
+        # set by our own lines, "CONFIG_X=n" included (a choice: USB_DWC3_DUAL_ROLE ends USB_DWC3_GADGET)
+        print("%s: the release builds it %s, our lines make it %s" % (s, rel[s], OURS[s]))
     elif fin.get(s) != rel[s] or plain.get(s) != rel[s]:
         errors.append("%s: the release builds it %s, arm64 gives %s (plain %s) and it is in neither list" % (s, rel[s], fin.get(s, "n"), plain.get(s, "n")))
 # every symbol arm64 adds is listed

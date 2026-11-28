@@ -1,0 +1,63 @@
+From f7ecf369ac088f75ca9d52c20e64c2e8b78f92e0 Mon Sep 17 00:00:00 2001
+From: elkir0 <elkir0@users.noreply.github.com>
+Date: Sat, 28 Nov 2026 12:00:00 +0000
+Subject: [PATCH] arm64: dts: exynos: gts28ltexx: USB host through an OTG
+ adapter
+
+The 32-bit board file keeps the DRD controller a device only.  Stock
+runs it in dual role (dr_mode "otg", high speed), its role from the
+MUIC.  For the 64-bit kernel, exynos5433-gts28ltexx-otg.dtsi sets
+dr_mode "otg" and points dwc3 at the SM5703 MUIC's extcon: an OTG
+adapter (EXTCON_USB_HOST) makes it a host through xHCI, anything else a
+device.  The compiled tree differs from the previous one by those two
+properties only.
+
+On the SM-T715, 2026-11-28: the controller starts as a device (the USB
+network link as before); forced to host, xHCI comes up with its USB 2.0
+and 3.0 root hubs and the gadget binds again on the way back; with an
+OTG adapter and a flash disk, host mode, the disk mounted, and the
+device role back when the adapter is removed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../dts/exynos/exynos5433-gts28ltexx-otg.dtsi  | 18 ++++++++++++++++++
+ .../boot/dts/exynos/exynos5433-gts28ltexx.dts  |  1 +
+ 2 files changed, 19 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx-otg.dtsi
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx-otg.dtsi b/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx-otg.dtsi
+new file mode 100644
+index 000000000..1938c765d
+--- /dev/null
++++ b/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx-otg.dtsi
+@@ -0,0 +1,18 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Samsung Galaxy Tab S2 8.0 LTE (SM-T715), 64-bit kernel: USB host through
++ * an OTG adapter.
++ *
++ * The 32-bit board file keeps the DRD controller a device only (the USB
++ * cable's network link).  Stock runs it in dual role (live tree: dwc3
++ * dr_mode "otg", high-speed), its role taken from the MUIC.  Here dwc3
++ * takes its role from the SM5703 MUIC's extcon: EXTCON_USB_HOST (an OTG
++ * adapter's grounded ID pin) makes it a host through xHCI, anything else a
++ * device.  The 5 V for the plugged device comes from the SM5703 charger's
++ * boost, which its driver turns on for the same extcon cable.
++ */
++
++&usbdrd_dwc3 {
++	dr_mode = "otg";
++	extcon = <&muic>;
++};
+diff --git a/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx.dts b/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx.dts
+index 5fca3ffb2..207fc02e4 100644
+--- a/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx.dts
++++ b/arch/arm64/boot/dts/exynos/exynos5433-gts28ltexx.dts
+@@ -13,3 +13,4 @@
+ #include "exynos5433-gts28ltexx-stage1.dtsi"
+ #include "exynos5433-gts28ltexx-no-sysmmu.dtsi"
+ #include "exynos5433-gts28ltexx-eas.dtsi"
++#include "exynos5433-gts28ltexx-otg.dtsi"
+-- 
+2.52.0
+

@@ -1,0 +1,312 @@
+From 6a24a2917f4be0c0cf5395a59915ef474acd7169 Mon Sep 17 00:00:00 2001
+From: elkir0 <elkir0@users.noreply.github.com>
+Date: Sat, 28 Nov 2026 12:00:00 +0000
+Subject: [PATCH] power: supply: sm5703: USB OTG boost for a USB host cable
+
+When the MUIC reports EXTCON_USB_HOST, put the chip in USB OTG mode with
+its 5.0 V boost on VBUS, in the sequence of Samsung's driver for this
+chip: OTGCURRENTCNTL (0x60) to 1200 mA, FLEDCNTL6 (0x19) BSTOUT to 5.0 V,
+then CNTL mode 7.  When the cable is gone: BSTOUT back to 4.5 V and CNTL
+mode 5, the periodic work then choosing between 4 and 5 as before.
+OTGFAIL in STATUS1 turns the boost off until the cable is plugged again.
+
+The decisions are made in the work, under the lock; a new extcon
+notifier only schedules it.  While the boost runs, VBUSOK reads 1 from
+the chip's own 5 V: the input is then treated as absent (no cable,
+offline, no input forcing, no recharge).  Shutdown and remove turn the
+boost off first.  0x19 and 0x60 join the regmap; INT1-4 and INTMSK1-4
+stay out of it.
+
+On the SM-T715, 2026-11-28: OTG adapter plugged, CNTL 0x57, BSTOUT 0x0a,
+OTGCURRENT 3, no OTGFAIL, a USB flash disk powered and mounted; adapter
+removed, CNTL 0x55 and BSTOUT 0x05 again, charging on the next USB cable.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/sm5703_charger.c | 148 ++++++++++++++++++++++++--
+ 1 file changed, 138 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/power/supply/sm5703_charger.c b/drivers/power/supply/sm5703_charger.c
+index 6de472dc2..60493aabb 100644
+--- a/drivers/power/supply/sm5703_charger.c
++++ b/drivers/power/supply/sm5703_charger.c
+@@ -7,10 +7,16 @@
+  *   02_sources/kernel_universal5433/drivers/battery/sm5703_charger.c
+  * which drives the same registers from the board's big battery driver.
+  * Only the charging decisions of the stock values are kept, in
+- * sm5703_charger_policy.h; the flash LED, the LDOs, the reset line, OTG
+- * and the Q3 limit belong to other functions of the chip and are left
++ * sm5703_charger_policy.h; the flash LED, the LDOs, the reset line and
++ * the Q3 limit belong to other functions of the chip and are left
+  * untouched.
+  *
++ * A USB host (OTG) cable, which the MUIC reports as EXTCON_USB_HOST, is
++ * handled here: the chip is put in USB OTG mode with the 5.0 V boost on
++ * VBUS and a 1200 mA OTG current limit, in the enable/disable sequence
++ * of Samsung's own driver for this chip (OTGCURRENTCNTL, then FLEDCNTL6,
++ * then CNTL); when the cable is gone the chip goes back to charging.
++ *
+  * The charger is its own I2C device (address 0x49), separate from the
+  * fuel gauge (0x71).  INT1-4 (0x00-0x03) are read-to-clear and INTMSK1-4
+  * (0x04-0x07) must never be written: neither is readable nor writeable
+@@ -56,9 +62,14 @@
+ #define SM5703_CHG_REG_CHGCNTL4		0x11
+ #define SM5703_CHG_REG_CHGCNTL5		0x12
+ #define SM5703_CHG_REG_CHGCNTL6		0x13
++#define SM5703_CHG_REG_FLEDCNTL6	0x19
+ #define SM5703_CHG_REG_DEVICE_ID	0x1E
++#define SM5703_CHG_REG_OTGCURRENTCNTL	0x60
+ #define SM5703_CHG_REG_STATUS5		0x6B
+ 
++/* STATUS1: OTGFAIL (7) */
++#define SM5703_CHG_STATUS1_OTGFAIL	BIT(7)
++
+ /* STATUS2: THEMREG (0), THEMSHDN (1), VSYSOK (3), NOBAT (4) */
+ #define SM5703_CHG_STATUS2_THEMREG	BIT(0)
+ #define SM5703_CHG_STATUS2_THEMSHDN	BIT(1)
+@@ -105,6 +116,15 @@
+ /* CHGCNTL6: FREQSEL (3:2), 0 3 MHz, 1 2.4 MHz, 2 1.5 MHz, 3 1.8 MHz */
+ #define SM5703_CHG_CHGCNTL6_FREQSEL	GENMASK(3, 2)
+ 
++/* FLEDCNTL6: BSTOUT (3:0), the boost output voltage */
++#define SM5703_CHG_FLEDCNTL6_BSTOUT	GENMASK(3, 0)
++#define SM5703_CHG_BSTOUT_4P5V		0x05
++#define SM5703_CHG_BSTOUT_5P0V		0x0A
++
++/* OTGCURRENTCNTL: OTGCURRENT (1:0), 0 500 mA, 1 700 mA, 2 900 mA, 3 1200 mA */
++#define SM5703_CHG_OTGCURRENT		GENMASK(1, 0)
++#define SM5703_CHG_OTGCURRENT_1200MA	3
++
+ #define SM5703_CHG_DEVICE_ID		0x01
+ 
+ /*
+@@ -145,12 +165,15 @@ struct sm5703_chg {
+ 	struct mutex lock;		/* protects everything below */
+ 	struct notifier_block sdp_nb;
+ 	struct notifier_block dcp_nb;
++	struct notifier_block host_nb;
+ 
+ 	enum sm5703_chg_cable cable;
+ 	enum sm5703_chg_zone zone;
+ 	bool have_zone;
+ 	bool had_vbus;
+ 	bool recharge_logged;
++	bool otg;
++	bool otg_failed;
+ 	unsigned int settle_tries;
+ 
+ 	/* Cached by the work, read by get_property() with no I2C */
+@@ -257,7 +280,7 @@ static void sm5703_chg_force_input(struct sm5703_chg *chg, int ma)
+ 				     ret);
+ }
+ 
+-static void sm5703_chg_write_mode(struct sm5703_chg *chg, unsigned int mode)
++static int sm5703_chg_write_mode(struct sm5703_chg *chg, unsigned int mode)
+ {
+ 	int ret;
+ 
+@@ -267,6 +290,53 @@ static void sm5703_chg_write_mode(struct sm5703_chg *chg, unsigned int mode)
+ 		dev_warn_ratelimited(chg->dev,
+ 				     "failed to write the charger mode: %d\n",
+ 				     ret);
++	return ret;
++}
++
++/*
++ * USB OTG (VBUS boost), the sequence of Samsung's own driver for this
++ * chip: the OTG current limit, then the boost output voltage, then the
++ * mode.  Only the named fields are written.  A failed enable is rolled
++ * back with the disable sequence before anything can depend on it.
++ */
++static void sm5703_chg_otg_disable(struct sm5703_chg *chg)
++{
++	int ret;
++
++	ret = regmap_update_bits(chg->regmap, SM5703_CHG_REG_FLEDCNTL6,
++				 SM5703_CHG_FLEDCNTL6_BSTOUT,
++				 SM5703_CHG_BSTOUT_4P5V);
++	if (!ret)
++		ret = sm5703_chg_write_mode(chg,
++					    SM5703_CHG_CNTL_MODE_CHARGING_ON);
++	if (ret)
++		dev_err(chg->dev, "failed to disable the VBUS boost: %d\n", ret);
++
++	chg->otg = false;
++}
++
++static void sm5703_chg_otg_enable(struct sm5703_chg *chg)
++{
++	int ret;
++
++	ret = regmap_update_bits(chg->regmap, SM5703_CHG_REG_OTGCURRENTCNTL,
++				 SM5703_CHG_OTGCURRENT,
++				 SM5703_CHG_OTGCURRENT_1200MA);
++	if (!ret)
++		ret = regmap_update_bits(chg->regmap, SM5703_CHG_REG_FLEDCNTL6,
++					 SM5703_CHG_FLEDCNTL6_BSTOUT,
++					 SM5703_CHG_BSTOUT_5P0V);
++	if (!ret)
++		ret = sm5703_chg_write_mode(chg, SM5703_CHG_CNTL_MODE_USB_OTG);
++	if (ret) {
++		dev_err(chg->dev, "failed to enable the VBUS boost: %d\n", ret);
++		sm5703_chg_otg_disable(chg);
++		return;
++	}
++
++	chg->otg = true;
++	dev_info(chg->dev,
++		 "USB host cable: VBUS boost on (5.0 V, 1200 mA limit)\n");
+ }
+ 
+ /*
+@@ -314,6 +384,7 @@ static void sm5703_chg_work(struct work_struct *work)
+ 	enum sm5703_chg_cable cable;
+ 	enum sm5703_chg_zone zone;
+ 	bool vbus, temp_valid, volt_valid;
++	bool host;
+ 	bool cable_changed, zone_changed;
+ 	bool online_changed, status_changed, health_changed;
+ 	bool mode_is_5 = false;
+@@ -322,11 +393,36 @@ static void sm5703_chg_work(struct work_struct *work)
+ 	unsigned long delay = SM5703_CHG_POLL_INTERVAL;
+ 	int temp = 0, uv = 0;
+ 	int online, status, health;
+-	unsigned int status2, status3, status5;
++	unsigned int status1, status2, status3, status5;
+ 	int ret;
+ 
+ 	mutex_lock(&chg->lock);
+ 
++	/*
++	 * USB OTG, decided here and nowhere else: the MUIC reports the
++	 * host cable, the chip is put in OTG mode or back to charging.
++	 * A boost that failed (OTGFAIL) is not retried until the cable
++	 * has been detached and attached again
++	 */
++	host = extcon_get_state(chg->edev, EXTCON_USB_HOST) > 0;
++	if (host && !chg->otg && !chg->otg_failed) {
++		sm5703_chg_otg_enable(chg);
++	} else if (!host) {
++		chg->otg_failed = false;
++		if (chg->otg) {
++			sm5703_chg_otg_disable(chg);
++			dev_info(chg->dev, "USB host cable gone: VBUS boost off\n");
++		}
++	} else if (chg->otg) {
++		ret = regmap_read(chg->regmap, SM5703_CHG_REG_STATUS1, &status1);
++		if (!ret && (status1 & SM5703_CHG_STATUS1_OTGFAIL)) {
++			dev_warn(chg->dev,
++				 "USB OTG boost failed (overload), VBUS boost off\n");
++			sm5703_chg_otg_disable(chg);
++			chg->otg_failed = true;
++		}
++	}
++
+ 	/* 1. The status registers, or nothing can be decided */
+ 	ret = regmap_read(chg->regmap, SM5703_CHG_REG_STATUS2, &status2);
+ 	if (!ret)
+@@ -346,6 +442,8 @@ static void sm5703_chg_work(struct work_struct *work)
+ 	 * purpose: only a TA may draw the full input limit
+ 	 */
+ 	vbus = status5 & SM5703_CHG_STATUS5_VBUSOK;
++	/* While the OTG boost is on its own 5 V makes VBUSOK read 1 */
++	vbus = vbus && !chg->otg;
+ 	if (!vbus)
+ 		cable = SM5703_CABLE_NONE;
+ 	else if (extcon_get_state(chg->edev, EXTCON_CHG_USB_DCP) > 0)
+@@ -395,7 +493,8 @@ static void sm5703_chg_work(struct work_struct *work)
+ 
+ 	/*
+ 	 * 6. Charging on or off, but only between the two charging modes:
+-	 * modes 6 (flash boost) and 7 (USB OTG) belong to someone else
++	 * mode 6 (flash boost) belongs to someone else, mode 7 (USB OTG)
++	 * is set and cleared at the top of the work
+ 	 */
+ 	if (vbus) {
+ 		unsigned int cntl, mode, want;
+@@ -571,6 +670,16 @@ static int sm5703_chg_dcp_notifier(struct notifier_block *nb,
+ 	return NOTIFY_DONE;
+ }
+ 
++static int sm5703_chg_host_notifier(struct notifier_block *nb,
++				    unsigned long action, void *data)
++{
++	struct sm5703_chg *chg = container_of(nb, struct sm5703_chg, host_nb);
++
++	mod_delayed_work(system_freezable_power_efficient_wq, &chg->work, 0);
++
++	return NOTIFY_DONE;
++}
++
+ static bool sm5703_chg_readable_reg(struct device *dev, unsigned int reg)
+ {
+ 	/*
+@@ -580,6 +689,8 @@ static bool sm5703_chg_readable_reg(struct device *dev, unsigned int reg)
+ 	 */
+ 	return (reg >= SM5703_CHG_REG_STATUS1 && reg <= SM5703_CHG_REG_STATUS3) ||
+ 	       (reg >= SM5703_CHG_REG_CNTL && reg <= SM5703_CHG_REG_CHGCNTL6) ||
++	       reg == SM5703_CHG_REG_FLEDCNTL6 ||
++	       reg == SM5703_CHG_REG_OTGCURRENTCNTL ||
+ 	       reg == SM5703_CHG_REG_DEVICE_ID ||
+ 	       reg == SM5703_CHG_REG_STATUS5;
+ }
+@@ -594,6 +705,8 @@ static bool sm5703_chg_writeable_reg(struct device *dev, unsigned int reg)
+ 	case SM5703_CHG_REG_CHGCNTL4:
+ 	case SM5703_CHG_REG_CHGCNTL5:
+ 	case SM5703_CHG_REG_CHGCNTL6:
++	case SM5703_CHG_REG_FLEDCNTL6:
++	case SM5703_CHG_REG_OTGCURRENTCNTL:
+ 		return true;
+ 	default:
+ 		return false;
+@@ -610,20 +723,28 @@ static const struct regmap_config sm5703_chg_regmap_config = {
+ };
+ 
+ /*
+- * What shutdown and remove leave in the chip: float 4200 mV, 450 mA
+- * charge and input, charging on.  A later stage without this driver must
+- * never inherit 4390 mV or a stopped charger.
++ * What shutdown and remove leave in the chip: the VBUS boost off, then
++ * float 4200 mV, 450 mA charge and input, charging on.  A later stage
++ * without this driver must never inherit 4390 mV, a stopped charger or
++ * a boost still running.
+  */
+ static void sm5703_chg_set_safe_state(struct sm5703_chg *chg)
+ {
+ 	unsigned int cntl;
++	int ret;
++
++	ret = regmap_read(chg->regmap, SM5703_CHG_REG_CNTL, &cntl);
++	if (chg->otg ||
++	    (!ret && (cntl & SM5703_CHG_CNTL_MODE) ==
++		      SM5703_CHG_CNTL_MODE_USB_OTG))
++		sm5703_chg_otg_disable(chg);
+ 
+ 	sm5703_chg_write_float(chg, SM5703_CHG_FLOAT_SAFE_MV);
+ 	sm5703_chg_write_charge(chg, SM5703_CHG_CURRENT_SAFE_MA);
+ 	sm5703_chg_write_input(chg, SM5703_CHG_CURRENT_SAFE_MA);
+ 
+-	if (!regmap_read(chg->regmap, SM5703_CHG_REG_CNTL, &cntl) &&
+-	    (cntl & SM5703_CHG_CNTL_MODE) == SM5703_CHG_CNTL_MODE_CHARGING_OFF)
++	if (!ret && (cntl & SM5703_CHG_CNTL_MODE) ==
++		      SM5703_CHG_CNTL_MODE_CHARGING_OFF)
+ 		sm5703_chg_write_mode(chg, SM5703_CHG_CNTL_MODE_CHARGING_ON);
+ }
+ 
+@@ -755,6 +876,13 @@ static int sm5703_chg_probe(struct i2c_client *client)
+ 		return dev_err_probe(dev, ret,
+ 				     "failed to register the DCP notifier\n");
+ 
++	chg->host_nb.notifier_call = sm5703_chg_host_notifier;
++	ret = devm_extcon_register_notifier(dev, chg->edev,
++					    EXTCON_USB_HOST, &chg->host_nb);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to register the USB host notifier\n");
++
+ 	queue_delayed_work(system_freezable_power_efficient_wq,
+ 			   &chg->work, 0);
+ 
+-- 
+2.52.0
+

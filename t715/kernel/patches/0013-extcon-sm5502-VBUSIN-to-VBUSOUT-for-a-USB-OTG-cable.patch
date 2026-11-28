@@ -1,0 +1,43 @@
+From 6a42cfe4b4400812218427aeb58a41b27a896b07 Mon Sep 17 00:00:00 2001
+From: elkir0 <elkir0@users.noreply.github.com>
+Date: Sat, 28 Nov 2026 12:00:00 +0000
+Subject: [PATCH] extcon: sm5502: VBUSIN to VBUSOUT for a USB OTG cable
+
+For an OTG cable (ID grounded) the driver routes D+/D- to USB but leaves
+the VBUSIN switch open.  On the SM5703 the charger's 5 V boost comes out
+on VBUSOUT and reaches the connector only through that switch: open, the
+plugged device never gets power.  Samsung's own SM5703 MUIC driver
+writes MANUAL_SW1 = 0x25 for an OTG cable: D+/D- to USB and VBUSIN to
+VBUSOUT.  Do the same.  A detach opens both switches, as before.
+
+On the SM-T715, 2026-11-28: with the charger's boost on, a USB flash
+disk behind an OTG adapter enumerates at high speed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/extcon/extcon-sm5502.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/extcon/extcon-sm5502.c b/drivers/extcon/extcon-sm5502.c
+index 21a780ea1..84a6f801e 100644
+--- a/drivers/extcon/extcon-sm5502.c
++++ b/drivers/extcon/extcon-sm5502.c
+@@ -513,7 +513,14 @@ static int sm5502_muic_cable_handler(struct sm5502_muic_info *info,
+ 	case SM5502_MUIC_ADC_OPEN_USB_OTG:
+ 		id	= EXTCON_USB_HOST;
+ 		con_sw	= DM_DP_SWITCH_USB;
+-		vbus_sw	= VBUSIN_SWITCH_OPEN;
++		/*
++		 * VBUSIN to VBUSOUT, as Samsung's SM5703 MUIC driver does for
++		 * an OTG cable (MANUAL_SW1 = 0x25: D+/D- to USB, VBUSIN to
++		 * VBUSOUT): the charger's 5 V boost comes out on VBUSOUT and
++		 * reaches the connector only through this switch.  Open, the
++		 * plugged device never gets power.
++		 */
++		vbus_sw	= VBUSIN_SWITCH_VBUSOUT;
+ 		break;
+ 	default:
+ 		dev_dbg(info->dev,
+-- 
+2.52.0
+
