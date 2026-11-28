@@ -7,8 +7,9 @@ The tree is the kernel tree of [omarchy-tab-s2](https://github.com/elkir0/omarch
 v6.12.114 plus its patch series, on the branch of its 1.0.5 release. The patches of `patches/` go
 on top of it, in their order, with `git am`. The kernel of omarchy-tab-s2 2.1.0 (2026-11-26) is
 `6.12.114-00106-gd30e37ad41ab`: that tree with the first ten patches, built with the
-configuration of `config/` (in the fork) as it was then. `0011` and `0012` (2026-11-27) are in no
-release yet.
+configuration of `config/` (in the fork) as it was then. `0011` and `0012` (2026-11-27) are in
+omarchy-tab-s2 2.2.0, kernel `6.12.114-00108-gc93ed45fae21`. `0013` to `0015` (2026-11-28) are in
+omarchy-tab-s2 2.3.0, kernel `6.12.114-00111-gf7ecf369ac08`.
 
 ## The patches
 
@@ -26,6 +27,9 @@ release yet.
 | `0010` | **arm64: exynos5433: CPU hot-unplug and suspend to RAM without PSCI.** Hot-unplug is the 32-bit kernel's `exynos5433_cpu_die()`, from AArch64 EL1: the HOTPLUG boot flag, the core's power off in the PMU, then the monitor's SHUTDOWN call; a core powered back on comes in again through the AArch32 stub of `0002`, and `cpu_kill` polls the PMU status. By hand it stays refused until `/sys/module/smp_exynos5433/parameters/hotplug` is 1; a system sleep may. Suspend to RAM (`CONFIG_ARM64_EXYNOS5433_SUSPEND`): the 32-bit kernel's PMU and clock programming, unchanged; the monitor's SLEEP call, from AArch64, inside `cpu_suspend()`; and the way back through a second twelve-word AArch32 stub, `exynos5433_resume_entry`, which the firmware jumps to on a wake-up: `SMC 0x82000400` again, EL2 set up as for a secondary, `eret` to `cpu_resume` at EL1. `exynos5433_sleep=on` or `=dryrun` and the one-shot arm switch work as on 32 bits. `c2test` powers one secondary down and back through the resume stub while the system runs. |
 | `0011` | **arm64: exynos5433: cpuidle C2 per core without PSCI.** The vendor kernel's per-core power-down as an idle state. `exynos5433_c2_suspend()` writes the resume address, the DIRECTGO magic and the core's C2 flag, then calls the monitor's SAVE and SHUTDOWN inside `cpu_suspend()`. `drivers/cpuidle/cpuidle-exynos5433.c` (`CONFIG_ARM64_EXYNOS5433_CPUIDLE`) has three drivers: CPU0 WFI only, the A53s and the A57s WFI and C2. They are entered with `CPU_PM_CPU_IDLE_ENTER_PARAM_RCU`, as cpuidle-psci does. Nothing is registered without `cpuidle_exynos5433.enable=1`. The secondaries' boot poll also counts a core's arrival as powered: a core brought online could reach C2 before the poll read the PMU. `c2wake` tests a core's wake-up by itself ([../docs/CPUIDLE.md](../docs/CPUIDLE.md)). |
 | `0012` | **arm64: dts: exynos: gts28ltexx: the energy model, for EAS.** Each CPU node's `dynamic-power-coefficient`, measured on the tablet: 177 for the A53s, 648 for the A57s. With `CONFIG_ENERGY_MODEL` the scheduler runs energy-aware ([../docs/ENERGY-MODEL.md](../docs/ENERGY-MODEL.md)). |
+| `0013` | **extcon: sm5502: VBUSIN to VBUSOUT for a USB OTG cable.** For an OTG cable the driver routed D+/D- to USB but left the VBUSIN switch open; on the SM5703 the charger's 5 V boost comes out on VBUSOUT and reaches the connector only through that switch. MANUAL_SW1 (0x13) = 0x25, as Samsung's own SM5703 MUIC driver writes it: D+/D- to USB, VBUSIN to VBUSOUT. A detach opens both switches, as before ([../docs/USB-OTG.md](../docs/USB-OTG.md)). |
+| `0014` | **power: supply: sm5703: USB OTG boost for a USB host cable.** On `EXTCON_USB_HOST` the charger puts the chip in USB OTG mode, in Samsung's sequence: OTGCURRENTCNTL (0x60) bits 1:0 = 3 (1200 mA), FLEDCNTL6 (0x19) BSTOUT = 0x0A (5.0 V), CNTL (0x0C) mode = 7; cable gone, BSTOUT = 0x05 (4.5 V) and mode 5. STATUS1 (0x08) bit 7 OTGFAIL turns the boost off until the next plug. INT1-4 and INTMSK1-4 stay out of the regmap ([../docs/USB-OTG.md](../docs/USB-OTG.md)). |
+| `0015` | **arm64: dts: exynos: gts28ltexx: USB host through an OTG adapter.** The 64-bit-only `exynos5433-gts28ltexx-otg.dtsi` sets `dr_mode = "otg"` and `extcon = <&muic>` on dwc3: an OTG adapter (`EXTCON_USB_HOST`) makes the DRD controller a host through xHCI, anything else a device. The 32-bit board file keeps the port a device only ([../docs/USB-OTG.md](../docs/USB-OTG.md)). |
 
 Patches `0001` to `0003`, `0005`, `0006` and `0010` are for any Exynos 5433 started this way.
 `0010` touches only `arch/arm64/kernel/`, with its entry in `arch/arm64/Kconfig` and its line in the
@@ -74,7 +78,7 @@ after it has powered the modem's CP and the Wi-Fi/Bluetooth chip down; a suspend
 prepared stays a dry run. With the Wi-Fi chip left up, the first real sleep never resumed: the
 board reset.
 
-Since 2026-11-27 (patches `0011` and `0012`, not yet in a release), three more:
+Since 2026-11-27 (patches `0011` and `0012`, in omarchy-tab-s2 2.2.0), three more:
 
 - `cpuidle_exynos5433.enable=1`: C2 per core from boot;
 - `smp_exynos5433.hotplug=1`: the A57 hot-unplug, which the image's `t715-keys` uses while the
@@ -82,7 +86,14 @@ Since 2026-11-27 (patches `0011` and `0012`, not yet in a release), three more:
 - `workqueue.power_efficient=1`.
 
 The configuration adds `CONFIG_CPU_IDLE`, `CONFIG_CPU_IDLE_GOV_MENU`,
-`CONFIG_ARM64_EXYNOS5433_CPUIDLE` and `CONFIG_ENERGY_MODEL`.
+`CONFIG_ARM64_EXYNOS5433_CPUIDLE` and `CONFIG_ENERGY_MODEL`. Since 2026-11-28 (patches `0013` to
+`0015`, in omarchy-tab-s2 2.3.0) it also adds `CONFIG_USB_DWC3_DUAL_ROLE` (with `CONFIG_USB_DWC3_GADGET=n`:
+the choice ends with dual role), `CONFIG_USB_XHCI_HCD`, `CONFIG_USB_XHCI_PLATFORM` and
+`CONFIG_SCSI=y`, and as modules the class drivers a USB host needs: SCSI disks, usb-storage, UAS,
+NTFS3, HID multitouch, Logitech and Apple HID, usbnet with CDC Ethernet, CDC NCM and RNDIS host,
+AX88179 and RTL8152, USB audio, CDC ACM, USB serial (FTDI, CP210x, CH341, PL2303), UVC. The build's
+configuration check accepts a symbol the 32-bit release builds and our own lines change on
+purpose (`CONFIG_X=n` included): `CONFIG_USB_DWC3_GADGET`.
 
 ## Building
 
