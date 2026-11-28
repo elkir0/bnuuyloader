@@ -9,7 +9,9 @@ on top of it, in their order, with `git am`. The kernel of omarchy-tab-s2 2.1.0 
 `6.12.114-00106-gd30e37ad41ab`: that tree with the first ten patches, built with the
 configuration of `config/` (in the fork) as it was then. `0011` and `0012` (2026-11-27) are in
 omarchy-tab-s2 2.2.0, kernel `6.12.114-00108-gc93ed45fae21`. `0013` to `0015` (2026-11-28) are in
-omarchy-tab-s2 2.3.0, kernel `6.12.114-00111-gf7ecf369ac08`.
+omarchy-tab-s2 2.3.0, kernel `6.12.114-00111-gf7ecf369ac08`. `0016` to `0018` (2026-11-28) are in no
+release yet: they were tested on the reference tablet (SM-T715) on 2026-11-28, with a test kernel
+built from `0001` to `0018` and the configuration of `config/` as it is now.
 
 ## The patches
 
@@ -30,6 +32,9 @@ omarchy-tab-s2 2.3.0, kernel `6.12.114-00111-gf7ecf369ac08`.
 | `0013` | **extcon: sm5502: VBUSIN to VBUSOUT for a USB OTG cable.** For an OTG cable the driver routed D+/D- to USB but left the VBUSIN switch open; on the SM5703 the charger's 5 V boost comes out on VBUSOUT and reaches the connector only through that switch. MANUAL_SW1 (0x13) = 0x25, as Samsung's own SM5703 MUIC driver writes it: D+/D- to USB, VBUSIN to VBUSOUT. A detach opens both switches, as before ([../docs/USB-OTG.md](../docs/USB-OTG.md)). |
 | `0014` | **power: supply: sm5703: USB OTG boost for a USB host cable.** On `EXTCON_USB_HOST` the charger puts the chip in USB OTG mode, in Samsung's sequence: OTGCURRENTCNTL (0x60) bits 1:0 = 3 (1200 mA), FLEDCNTL6 (0x19) BSTOUT = 0x0A (5.0 V), CNTL (0x0C) mode = 7; cable gone, BSTOUT = 0x05 (4.5 V) and mode 5. STATUS1 (0x08) bit 7 OTGFAIL turns the boost off until the next plug. INT1-4 and INTMSK1-4 stay out of the regmap ([../docs/USB-OTG.md](../docs/USB-OTG.md)). |
 | `0015` | **arm64: dts: exynos: gts28ltexx: USB host through an OTG adapter.** The 64-bit-only `exynos5433-gts28ltexx-otg.dtsi` sets `dr_mode = "otg"` and `extcon = <&muic>` on dwc3: an OTG adapter (`EXTCON_USB_HOST`) makes the DRD controller a host through xHCI, anything else a device. The 32-bit board file keeps the port a device only ([../docs/USB-OTG.md](../docs/USB-OTG.md)). |
+| `0016` | **arm64: dts: exynos: gts28ltexx: feed the MFC from ACLK_MFC_400.** The SoC's MFC v8 node is complete and enabled, but the board has to set CMU_MFC's input mux to `ACLK_MFC_400`, or it can stay on the oscillator; the 64-bit-only `exynos5433-gts28ltexx-mfc.dtsi` does it. With `CONFIG_VIDEO_SAMSUNG_S5P_MFC=m` (and `CONFIG_V4L_MEM2MEM_DRIVERS=y`) and the firmware in the root, s5p-mfc registers a decoder and an encoder: on the SM-T715 (2026-11-28) a 1080p30 H.264 clip decoded at 150 fps for 0.54 s of CPU, against 135 fps for 8.00 s in software. |
+| `0017` | **iio: light: cm36652: a driver for the Capella CM36652, and the Tab S2's sensor.** A new IIO driver for the light half of the CM36652 (red, green, blue and white counts, a shared integration time, an illuminance from the green channel); the proximity half is put in shutdown at probe and resume, so its IR LED never runs. The binding is `capella,cm36652.yaml`; the 64-bit-only `exynos5433-gts28ltexx-als.dtsi` puts the sensor on the board's bit-banged bus (gpd4-1 SDA, gpd4-2 SCL). The integration time field is two bits (40, 80, 160 and 320 ms), measured: under steady light the counts doubled at each step. The lux scale is an approximation (the CM3323's published sensitivity, behind the cover glass). On the SM-T715 (2026-11-28) the driver probes and the image's automatic brightness follows it. |
+| `0018` | **ASoC: samsung: gts28_wm1814: detect the headphones and the headset.** The machine driver never gave the WM1814 a jack, so arizona-jack stayed idle; `late_probe` now creates a "Headset" jack with the HP and Headset Mic pins and the four MICD buttons as `BTN_0` to `BTN_3`, and hands it to the codec with `snd_soc_component_set_jack()`. The card's controls are "HP Jack" and "Headset Mic Jack"; the headset microphone gets its widget and route (MICBIAS1 to IN2B). On the SM-T715 (2026-11-28) the card registers with both controls off when nothing is plugged; a plug was not tried yet. |
 
 Patches `0001` to `0003`, `0005`, `0006` and `0010` are for any Exynos 5433 started this way.
 `0010` touches only `arch/arm64/kernel/`, with its entry in `arch/arm64/Kconfig` and its line in the
@@ -91,7 +96,11 @@ The configuration adds `CONFIG_CPU_IDLE`, `CONFIG_CPU_IDLE_GOV_MENU`,
 the choice ends with dual role), `CONFIG_USB_XHCI_HCD`, `CONFIG_USB_XHCI_PLATFORM` and
 `CONFIG_SCSI=y`, and as modules the class drivers a USB host needs: SCSI disks, usb-storage, UAS,
 NTFS3, HID multitouch, Logitech and Apple HID, usbnet with CDC Ethernet, CDC NCM and RNDIS host,
-AX88179 and RTL8152, USB audio, CDC ACM, USB serial (FTDI, CP210x, CH341, PL2303), UVC. The build's
+AX88179 and RTL8152, USB audio, CDC ACM, USB serial (FTDI, CP210x, CH341, PL2303), UVC. Since
+2026-11-28 (patches `0016` to `0018`, in no release yet) it also adds `CONFIG_V4L_MEM2MEM_DRIVERS=y`
+and `CONFIG_VIDEO_SAMSUNG_S5P_MFC=m` (the MFC, `0016`), `CONFIG_CM36652=m` (the ambient light
+sensor, `0017`) and `CONFIG_EXT4_FS_SECURITY=y` (security.* extended attributes on ext4, so the
+root keeps file capabilities; the 32-bit release builds without them). The build's
 configuration check accepts a symbol the 32-bit release builds and our own lines change on
 purpose (`CONFIG_X=n` included): `CONFIG_USB_DWC3_GADGET`.
 
